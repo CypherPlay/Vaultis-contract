@@ -1,5 +1,8 @@
 {
   "name": "Vaultis-contract",
   "version": "1.0.0",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "hardhat": "^3.0.7"
+  }
 }
