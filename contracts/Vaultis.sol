@@ -9,6 +9,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     constructor(address initialOwner) Ownable(initialOwner) {
     }
     mapping(address => uint256) public balances;
+    uint256 public currentRiddleId;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
