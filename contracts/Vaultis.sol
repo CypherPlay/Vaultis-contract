@@ -10,6 +10,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
     mapping(address => uint256) public balances;
     uint256 public currentRiddleId;
+    uint256 public prizePool;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
@@ -19,7 +20,12 @@ contract Vaultis is Ownable, ReentrancyGuard {
     function deposit() public payable nonReentrant {
         require(msg.value > 0, "Deposit amount must be greater than zero");
         balances[msg.sender] += msg.value;
+        addToPrizePool();
         emit Deposit(msg.sender, msg.value);
+    }
+
+    function addToPrizePool() internal payable {
+        prizePool += msg.value;
     }
 
     function withdraw(uint256 _amount) public nonReentrant {
@@ -39,4 +45,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
                                 (bool success, ) = owner().call{value: _amount, gas: 200000}("");
                                 require(success, "Owner withdrawal failed");
                                 emit OwnerWithdrawal(owner(), _amount);    }
+
+    function resetPrizePool() internal {
+        prizePool = 0;
+    }
 }
