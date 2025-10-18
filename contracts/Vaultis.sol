@@ -27,7 +27,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         emit Deposit(msg.sender, msg.value);
     }
 
-    function addToPrizePool() internal payable {
+    function addToPrizePool() internal {
         prizePool += msg.value;
     }
 
@@ -51,6 +51,16 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
     event RiddleInitialized(uint256 indexed newRiddleId);
 
+    struct Riddle {
+        bytes32 answerHash;
+        address prizeToken;
+        bool exists; // To check if a riddle ID has been set
+    }
+
+    mapping(uint256 => Riddle) public riddles;
+
+    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, address prizeToken);
+
     function initializeNewRiddle() public onlyOwner {
         currentRiddleId++;
         emit RiddleInitialized(currentRiddleId);
@@ -58,5 +68,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
     function resetPrizePool() internal {
         prizePool = 0;
+    }
+
+    function setRiddle(uint256 _riddleId, bytes32 _answerHash, address _prizeToken) public onlyOwner {
+        require(_riddleId > 0, "Riddle ID cannot be zero");
+        require(_prizeToken != address(0), "Prize token address cannot be zero");
+
+        riddles[_riddleId] = Riddle(_answerHash, _prizeToken, true);
+        emit RiddleSet(_riddleId, _answerHash, _prizeToken);
     }
 }
