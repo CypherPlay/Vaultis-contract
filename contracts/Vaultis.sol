@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract Vaultis is Ownable, ReentrancyGuard {
     constructor(address initialOwner) Ownable(initialOwner) {
@@ -12,8 +12,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public currentRiddleId;
     uint256 public prizePool;
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
-    private bytes32 s_answerHash;
-    private address s_prizeToken;
+    bytes32 private sAnswerHash;
+    address private sPrizeToken;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
@@ -58,13 +58,31 @@ contract Vaultis is Ownable, ReentrancyGuard {
         prizePool = 0;
     }
 
+    /**
+     * @dev Sets a new riddle.
+     * The `_riddleId` must be greater than the `currentRiddleId` to ensure monotonic progression and prevent replay attacks.
+     * The `prizePool` is reset to 0 for each new riddle.
+     * @param _riddleId The unique identifier for the new riddle.
+     * @param _answerHash The hash of the answer to the new riddle.
+     * @param _prizeToken The address of the ERC20 token used as prize for the new riddle.
+     */
     function setRiddle(uint256 _riddleId, bytes32 _answerHash, address _prizeToken) public onlyOwner {
         require(_riddleId > 0, "Riddle ID cannot be zero");
+        require(_riddleId > currentRiddleId, "Riddle ID must be greater than current");
         require(_prizeToken != address(0), "Prize token address cannot be zero");
 
         currentRiddleId = _riddleId;
-        s_answerHash = _answerHash;
-        s_prizeToken = _prizeToken;
+        sAnswerHash = _answerHash;
+        sPrizeToken = _prizeToken;
+        prizePool = 0;
         emit RiddleSet(_riddleId, _answerHash, _prizeToken);
+    }
+
+    function getAnswerHash() public view returns (bytes32) {
+        return sAnswerHash;
+    }
+
+    function getPrizeToken() public view returns (address) {
+        return sPrizeToken;
     }
 }
