@@ -2,7 +2,7 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import "forge-std/console.sol";
+import {console} from "forge-std/console.sol";
 import {Vaultis} from "./Vaultis.sol";
 
 contract VaultisTest is Test {
@@ -130,6 +130,106 @@ contract VaultisTest is Test {
         vaultis.withdraw(1 ether);
         vm.stopPrank();
         assertEq(vaultis.balances(user1), 0 ether);
+    }
+
+    function testSetRiddle() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        address prizeToken = address(0x123);
+
+        vm.startPrank(address(this));
+        vaultis.setRiddle(1, answerHash, prizeToken);
+        vm.stopPrank();
+
+        assertEq(vaultis.currentRiddleId(), 1);
+        assertEq(vaultis.getAnswerHash(), answerHash);
+        assertEq(vaultis.getPrizeToken(), prizeToken);
+        assertEq(vaultis.prizePool(), 0); // prizePool should be reset
+    }
+
+    function testSetRiddleZeroIdFails() public {
+        vm.expectRevert("Riddle ID cannot be zero");
+        vm.startPrank(address(this));
+        vaultis.setRiddle(0, keccak256(abi.encodePacked("answer")), address(0x123));
+        vm.stopPrank();
+    }
+
+    function testSetRiddleBackdatingFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        address prizeToken = address(0x123);
+
+        vm.startPrank(address(this));
+        vaultis.setRiddle(5, answerHash, prizeToken);
+        vm.expectRevert("Riddle ID must be greater than current");
+        vaultis.setRiddle(3, answerHash, prizeToken);
+        vm.stopPrank();
+    }
+
+    function testSetRiddleSameIdFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        address prizeToken = address(0x123);
+
+        vm.startPrank(address(this));
+        vaultis.setRiddle(5, answerHash, prizeToken);
+        vm.expectRevert("Riddle ID must be greater than current");
+        vaultis.setRiddle(5, answerHash, prizeToken);
+        vm.stopPrank();
+    }
+
+    function testSetRiddleNonOwnerFails() public {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), address(0x123));
+        vm.stopPrank();
+    }
+
+    function testSetRiddleZeroPrizeTokenFails() public {
+        vm.expectRevert("Prize token address cannot be zero");
+        vm.startPrank(address(this));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), address(0));
+        vm.stopPrank();
+    }
+
+    function testDepositAfterRiddleSet() public {
+        vm.deal(user1, 10 ether);
+        vm.startPrank(address(this));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), address(0x123));
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        vaultis.deposit{value: 1 ether}();
+        vm.stopPrank();
+
+        assertEq(vaultis.balances(user1), 1 ether);
+        assertEq(vaultis.hasParticipated(1, user1), true);
+        assertEq(vaultis.prizePool(), 1 ether);
+    }
+
+    function testDepositMultipleRiddles() public {
+        vm.deal(user1, 10 ether);
+        vm.startPrank(address(this));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer1")), address(0x123));
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        vaultis.deposit{value: 1 ether}();
+        vm.stopPrank();
+
+        assertEq(vaultis.prizePool(), 1 ether);
+
+        vm.startPrank(address(this));
+        vaultis.setRiddle(2, keccak256(abi.encodePacked("answer2")), address(0x123));
+        vm.stopPrank();
+
+        assertEq(vaultis.prizePool(), 0); // prizePool should be reset for new riddle
+
+        vm.startPrank(user1);
+        vaultis.deposit{value: 2 ether}();
+        vm.stopPrank();
+
+        assertEq(vaultis.balances(user1), 3 ether); // 1 ether from riddle 1 + 2 ether from riddle 2
+        assertEq(vaultis.hasParticipated(1, user1), true);
+        assertEq(vaultis.hasParticipated(2, user1), true);
+        assertEq(vaultis.prizePool(), 2 ether);
     }
 
     receive() external payable {
