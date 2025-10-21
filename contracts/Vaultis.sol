@@ -12,10 +12,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public currentRiddleId;
     uint256 public prizePool;
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
+    private bytes32 s_answerHash;
+    private address s_prizeToken;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
     event OwnerWithdrawal(address indexed owner, uint256 amount);
+    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, address prizeToken);
 
 
     function deposit() public payable nonReentrant {
@@ -49,22 +52,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
                                 require(success, "Owner withdrawal failed");
                                 emit OwnerWithdrawal(owner(), _amount);    }
 
-    event RiddleInitialized(uint256 indexed newRiddleId);
 
-    struct Riddle {
-        bytes32 answerHash;
-        address prizeToken;
-        bool exists; // To check if a riddle ID has been set
-    }
-
-    mapping(uint256 => Riddle) public riddles;
-
-    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, address prizeToken);
-
-    function initializeNewRiddle() public onlyOwner {
-        currentRiddleId++;
-        emit RiddleInitialized(currentRiddleId);
-    }
 
     function resetPrizePool() internal {
         prizePool = 0;
@@ -74,7 +62,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_prizeToken != address(0), "Prize token address cannot be zero");
 
-        riddles[_riddleId] = Riddle(_answerHash, _prizeToken, true);
+        currentRiddleId = _riddleId;
+        s_answerHash = _answerHash;
+        s_prizeToken = _prizeToken;
         emit RiddleSet(_riddleId, _answerHash, _prizeToken);
     }
 }
