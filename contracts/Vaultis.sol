@@ -5,21 +5,32 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract Vaultis is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
     constructor(address initialOwner) Ownable(initialOwner) {
     }
     mapping(address => uint256) public balances;
     uint256 public currentRiddleId;
-    uint256 public prizePool;
+    uint256 public ethPrizePool;
     IERC20 public prizeToken;
+    uint256 public tokenPrizePool;
+    uint256 public prizeAmount;
+
+    enum PrizeType { ETH, ERC20 }
+    PrizeType public prizeType;
+
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
     bytes32 private sAnswerHash;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
     event OwnerWithdrawal(address indexed owner, uint256 amount);
-    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, IERC20 prizeToken);
+    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, PrizeType prizeType, address prizeTokenAddress, uint256 prizeAmount);
+    event PrizeDistributed(address indexed winner, uint256 amount, PrizeType prizeType);
+    event PrizeFunded(address indexed funder, uint256 amount, PrizeType prizeType);
+    event EthReceived(address indexed sender, uint256 amount);
 
 
     function deposit() public payable nonReentrant {
@@ -27,12 +38,23 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(!hasParticipated[currentRiddleId][msg.sender], "Already participated in this riddle");
         balances[msg.sender] += msg.value;
         hasParticipated[currentRiddleId][msg.sender] = true;
-        addToPrizePool();
         emit Deposit(msg.sender, msg.value);
     }
 
-    function addToPrizePool() internal {
-        prizePool += msg.value;
+    receive() external payable {
+        require(msg.value > 0, "ETH amount must be greater than zero");
+        ethPrizePool += msg.value;
+        emit EthReceived(msg.sender, msg.value);
+    }
+
+    function fundTokenPrizePool(uint256 _amount) public onlyOwner nonReentrant {
+        require(_amount > 0, "Amount must be greater than zero");
+        require(prizeType == PrizeType.ERC20, "Current riddle prize is not ERC20");
+        require(address(prizeToken) != address(0), "Prize token not set");
+        
+        prizeToken.safeTransferFrom(msg.sender, address(this), _amount);
+        tokenPrizePool += _amount;
+        emit PrizeFunded(msg.sender, _amount, PrizeType.ERC20);
     }
 
     function withdraw(uint256 _amount) public nonReentrant {
@@ -47,16 +69,39 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
     function ownerWithdraw(uint256 _amount) public onlyOwner nonReentrant {
         require(_amount > 0, "Owner withdrawal amount must be greater than zero");
-                require(address(this).balance >= _amount, "Insufficient contract balance");
+        require(address(this).balance >= _amount, "Insufficient contract balance");
         
-                                (bool success, ) = owner().call{value: _amount, gas: 200000}("");
-                                require(success, "Owner withdrawal failed");
-                                emit OwnerWithdrawal(owner(), _amount);    }
+        (bool success, ) = owner().call{value: _amount, gas: 200000}("");
+        require(success, "Owner withdrawal failed");
+        emit OwnerWithdrawal(owner(), _amount);
+    }
 
+    function _distributePrize(address _winner, uint256 _amount) internal nonReentrant {
+        require(_winner != address(0), "Winner address cannot be zero");
+        require(_amount > 0, "Prize amount must be greater than zero");
 
+        if (prizeType == PrizeType.ETH) {
+            require(ethPrizePool >= _amount, "Insufficient ETH prize pool balance");
+            require(address(this).balance >= _amount, "Insufficient contract ETH balance");
+            ethPrizePool -= _amount;
+            (bool success, ) = _winner.call{value: _amount}("");
+            require(success, "ETH transfer failed");
+        } else if (prizeType == PrizeType.ERC20) {
+            require(address(prizeToken) != address(0), "Prize token not set");
+            require(tokenPrizePool >= _amount, "Insufficient ERC20 prize pool balance");
+            tokenPrizePool -= _amount;
+            prizeToken.safeTransfer(_winner, _amount);
+        }
+        emit PrizeDistributed(_winner, _amount, prizeType);
+    }
 
-    function resetPrizePool() internal {
-        prizePool = 0;
+    function solveRiddleAndClaim(string calldata _answer) public nonReentrant {
+        require(currentRiddleId > 0, "No active riddle");
+        require(!hasParticipated[currentRiddleId][msg.sender], "Already participated in this riddle");
+        require(keccak256(abi.encodePacked(_answer)) == sAnswerHash, "Incorrect answer");
+
+        hasParticipated[currentRiddleId][msg.sender] = true;
+        _distributePrize(msg.sender, prizeAmount);
     }
 
     /**
@@ -65,18 +110,38 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * The `prizePool` is reset to 0 for each new riddle.
      * @param _riddleId The unique identifier for the new riddle.
      * @param _answerHash The hash of the answer to the new riddle.
-     * @param _prizeToken The address of the ERC20 token used as prize for the new riddle.
+     * @param _prizeType The type of prize (ETH or ERC20).
+     * @param _prizeTokenAddress The address of the ERC20 token if prizeType is ERC20, otherwise address(0).
+     * @param _prizeAmount The amount of the prize.
      */
-    function setRiddle(uint256 _riddleId, bytes32 _answerHash, IERC20 _prizeToken) public onlyOwner {
+    function setRiddle(uint256 _riddleId, bytes32 _answerHash, PrizeType _prizeType, address _prizeTokenAddress, uint256 _prizeAmount) public onlyOwner {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_riddleId > currentRiddleId, "Riddle ID must be greater than current");
-        require(address(_prizeToken) != address(0), "Prize token address cannot be zero");
+        require(_prizeAmount > 0, "Prize amount must be greater than zero");
+
+        if (_prizeType == PrizeType.ERC20) {
+            require(_prizeTokenAddress != address(0), "Prize token address cannot be zero for ERC20 prize");
+            // Validate the token contract by checking it implements ERC-20
+            // Check if the address contains contract bytecode
+            require(address(_prizeTokenAddress).code.length > 0, "Prize token has no contract code");
+            try IERC20(_prizeTokenAddress).totalSupply() returns (uint256) {
+                // Token is valid
+            } catch {
+                revert("Invalid ERC-20 token: totalSupply call failed");
+            }
+            prizeToken = IERC20(_prizeTokenAddress);
+        } else {
+            require(_prizeTokenAddress == address(0), "Prize token address must be zero for ETH prize");
+            prizeToken = IERC20(address(0)); // Explicitly set to zero address for ETH prizes
+        }
 
         currentRiddleId = _riddleId;
         sAnswerHash = _answerHash;
-        prizeToken = _prizeToken;
-        prizePool = 0;
-        emit RiddleSet(_riddleId, _answerHash, _prizeToken);
+        prizeType = _prizeType;
+        prizeAmount = _prizeAmount;
+        ethPrizePool = 0;
+        tokenPrizePool = 0;
+        emit RiddleSet(_riddleId, _answerHash, _prizeType, _prizeTokenAddress, _prizeAmount);
     }
 
     function getAnswerHash() public view returns (bytes32) {
