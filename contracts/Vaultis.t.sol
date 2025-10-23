@@ -14,7 +14,7 @@ contract VaultisTest is Test {
     address public user2;
 
     function setUp() public {
-        vaultis = new Vaultis(address(this));
+        vaultis = new Vaultis(user1);
         mockERC20 = new MockERC20("MockToken", "MTK");
         user1 = address(uint160(uint256(keccak256(abi.encodePacked("user1")))));
         user2 = address(uint160(uint256(keccak256(abi.encodePacked("user2")))));
@@ -24,7 +24,7 @@ contract VaultisTest is Test {
     }
 
     function testOwnerIsTestContract() public view {
-        assertEq(vaultis.owner(), address(this));
+        assertEq(vaultis.owner(), user1);
     }
 
     function testDeposit() public {
@@ -74,9 +74,9 @@ contract VaultisTest is Test {
     }
 
     function testOwnerWithdraw() public {
-        vm.deal(user1, 10 ether);
         vm.startPrank(user1);
-        vaultis.deposit{value: 5 ether}();
+        (bool sent, ) = address(vaultis).call{value: 5 ether}("");
+        require(sent, "Failed to send eth to vaultis");
         vm.stopPrank();
 
         uint256 initialOwnerBalance = address(this).balance;
@@ -149,7 +149,6 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.currentRiddleId(), 1);
-        assertEq(vaultis.getAnswerHash(), answerHash);
         assertEq(uint256(vaultis.prizeType()), uint256(Vaultis.PrizeType.ETH));
         assertEq(vaultis.getPrizeToken(), address(0));
         assertEq(vaultis.prizeAmount(), prizeAmount);
@@ -166,7 +165,6 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.currentRiddleId(), 2);
-        assertEq(vaultis.getAnswerHash(), answerHash);
         assertEq(uint256(vaultis.prizeType()), uint256(Vaultis.PrizeType.ERC20));
         assertEq(vaultis.getPrizeToken(), address(mockERC20));
         assertEq(vaultis.prizeAmount(), prizeAmount);
@@ -482,6 +480,9 @@ contract VaultisTest is Test {
 
             vm.stopPrank();
 
-        }
+        }        function testGetAnswerHashNonExistentFails() public {
+        (bool success,) = address(vaultis).call(abi.encodeWithSignature("getAnswerHash()"));
+        assertFalse(success, "Calling getAnswerHash() should not succeed");
+    }
 
     }

@@ -22,7 +22,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     PrizeType public prizeType;
 
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
-    bytes32 private sAnswerHash;
+    bytes32 internal sAnswerHash;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
@@ -144,9 +144,6 @@ contract Vaultis is Ownable, ReentrancyGuard {
         emit RiddleSet(_riddleId, _answerHash, _prizeType, _prizeTokenAddress, _prizeAmount);
     }
 
-    function getAnswerHash() public view returns (bytes32) {
-        return sAnswerHash;
-    }
 
     function getPrizeToken() public view returns (address) {
         return address(prizeToken);
