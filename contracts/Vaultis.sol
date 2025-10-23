@@ -22,7 +22,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     PrizeType public prizeType;
 
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
-    bytes32 private sAnswerHash;
+    bytes32 private answerHash;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
@@ -98,7 +98,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     function solveRiddleAndClaim(string calldata _answer) public nonReentrant {
         require(currentRiddleId > 0, "No active riddle");
         require(!hasParticipated[currentRiddleId][msg.sender], "Already participated in this riddle");
-        require(keccak256(abi.encodePacked(_answer)) == sAnswerHash, "Incorrect answer");
+        require(keccak256(abi.encodePacked(_answer)) == answerHash, "Incorrect answer");
 
         hasParticipated[currentRiddleId][msg.sender] = true;
         _distributePrize(msg.sender, prizeAmount);
@@ -136,7 +136,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         }
 
         currentRiddleId = _riddleId;
-        sAnswerHash = _answerHash;
+        answerHash = _answerHash;
         prizeType = _prizeType;
         prizeAmount = _prizeAmount;
         ethPrizePool = 0;
@@ -145,7 +145,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
 
     function getAnswerHash() public view returns (bytes32) {
-        return sAnswerHash;
+        return answerHash;
     }
 
     function getPrizeToken() public view returns (address) {
