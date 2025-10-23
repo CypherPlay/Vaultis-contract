@@ -4,6 +4,7 @@ import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {console} from "forge-std/console.sol";
 import {Vaultis} from "./Vaultis.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract VaultisTest is Test {
     Vaultis public vaultis;
@@ -113,7 +114,7 @@ contract VaultisTest is Test {
 
     function testReentrancyGuardDeposit() public {
         // This test is more about ensuring nonReentrant modifier is present
-        // and doesn't cause issues, rather than a full reentrancy attack simulation
+        // and doesn\'t cause issues, rather than a full reentrancy attack simulation
         // which would require a malicious contract.
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
@@ -123,7 +124,7 @@ contract VaultisTest is Test {
     }
 
     function testReentrancyGuardWithdraw() public {
-        // Similar to deposit, this primarily checks the modifier's presence.
+        // Similar to deposit, this primarily checks the modifier\'s presence.
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
         vaultis.deposit{value: 1 ether}();
@@ -134,7 +135,7 @@ contract VaultisTest is Test {
 
     function testSetRiddle() public {
         bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
-        address prizeToken = address(0x123);
+        IERC20 prizeToken = IERC20(address(0x123));
 
         vm.startPrank(address(this));
         vaultis.setRiddle(1, answerHash, prizeToken);
@@ -142,20 +143,20 @@ contract VaultisTest is Test {
 
         assertEq(vaultis.currentRiddleId(), 1);
         assertEq(vaultis.getAnswerHash(), answerHash);
-        assertEq(vaultis.getPrizeToken(), prizeToken);
+        assertEq(vaultis.getPrizeToken(), address(prizeToken));
         assertEq(vaultis.prizePool(), 0); // prizePool should be reset
     }
 
     function testSetRiddleZeroIdFails() public {
         vm.expectRevert("Riddle ID cannot be zero");
         vm.startPrank(address(this));
-        vaultis.setRiddle(0, keccak256(abi.encodePacked("answer")), address(0x123));
+        vaultis.setRiddle(0, keccak256(abi.encodePacked("answer")), IERC20(address(0x123)));
         vm.stopPrank();
     }
 
     function testSetRiddleBackdatingFails() public {
         bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
-        address prizeToken = address(0x123);
+        IERC20 prizeToken = IERC20(address(0x123));
 
         vm.startPrank(address(this));
         vaultis.setRiddle(5, answerHash, prizeToken);
@@ -166,7 +167,7 @@ contract VaultisTest is Test {
 
     function testSetRiddleSameIdFails() public {
         bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
-        address prizeToken = address(0x123);
+        IERC20 prizeToken = IERC20(address(0x123));
 
         vm.startPrank(address(this));
         vaultis.setRiddle(5, answerHash, prizeToken);
@@ -178,21 +179,21 @@ contract VaultisTest is Test {
     function testSetRiddleNonOwnerFails() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), address(0x123));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), IERC20(address(0x123)));
         vm.stopPrank();
     }
 
     function testSetRiddleZeroPrizeTokenFails() public {
         vm.expectRevert("Prize token address cannot be zero");
         vm.startPrank(address(this));
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), address(0));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), IERC20(address(0)));
         vm.stopPrank();
     }
 
     function testDepositAfterRiddleSet() public {
         vm.deal(user1, 10 ether);
         vm.startPrank(address(this));
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), address(0x123));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), IERC20(address(0x123)));
         vm.stopPrank();
 
         vm.startPrank(user1);
@@ -207,7 +208,7 @@ contract VaultisTest is Test {
     function testDepositMultipleRiddles() public {
         vm.deal(user1, 10 ether);
         vm.startPrank(address(this));
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer1")), address(0x123));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer1")), IERC20(address(0x123)));
         vm.stopPrank();
 
         vm.startPrank(user1);
@@ -217,7 +218,7 @@ contract VaultisTest is Test {
         assertEq(vaultis.prizePool(), 1 ether);
 
         vm.startPrank(address(this));
-        vaultis.setRiddle(2, keccak256(abi.encodePacked("answer2")), address(0x123));
+        vaultis.setRiddle(2, keccak256(abi.encodePacked("answer2")), IERC20(address(0x123)));
         vm.stopPrank();
 
         assertEq(vaultis.prizePool(), 0); // prizePool should be reset for new riddle

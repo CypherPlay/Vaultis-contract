@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Vaultis is Ownable, ReentrancyGuard {
     constructor(address initialOwner) Ownable(initialOwner) {
@@ -11,14 +12,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(address => uint256) public balances;
     uint256 public currentRiddleId;
     uint256 public prizePool;
+    IERC20 public prizeToken;
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
     bytes32 private sAnswerHash;
-    address private sPrizeToken;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
     event OwnerWithdrawal(address indexed owner, uint256 amount);
-    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, address prizeToken);
+    event RiddleSet(uint256 indexed riddleId, bytes32 answerHash, IERC20 prizeToken);
 
 
     function deposit() public payable nonReentrant {
@@ -66,14 +67,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _answerHash The hash of the answer to the new riddle.
      * @param _prizeToken The address of the ERC20 token used as prize for the new riddle.
      */
-    function setRiddle(uint256 _riddleId, bytes32 _answerHash, address _prizeToken) public onlyOwner {
+    function setRiddle(uint256 _riddleId, bytes32 _answerHash, IERC20 _prizeToken) public onlyOwner {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_riddleId > currentRiddleId, "Riddle ID must be greater than current");
-        require(_prizeToken != address(0), "Prize token address cannot be zero");
+        require(address(_prizeToken) != address(0), "Prize token address cannot be zero");
 
         currentRiddleId = _riddleId;
         sAnswerHash = _answerHash;
-        sPrizeToken = _prizeToken;
+        prizeToken = _prizeToken;
         prizePool = 0;
         emit RiddleSet(_riddleId, _answerHash, _prizeToken);
     }
@@ -83,6 +84,6 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
 
     function getPrizeToken() public view returns (address) {
-        return sPrizeToken;
+        return address(prizeToken);
     }
 }
