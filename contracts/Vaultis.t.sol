@@ -106,11 +106,13 @@ contract VaultisTest is Test {
         vm.startPrank(user1);
         (bool sent, ) = address(vaultis).call{value: 5 ether}("");
         require(sent, "Failed to send eth to vaultis");
+        uint256 initialPool = vaultis.ethPrizePool();
         vaultis.ownerWithdraw(2 ether);
         vm.stopPrank();
 
         assertEq(address(vaultis).balance, 3 ether);
         assertEq(user1.balance, 97 ether); // user1's balance should increase by 2 ether
+        assertEq(vaultis.ethPrizePool(), initialPool - 2 ether);
     }
 
     function testOwnerWithdrawInsufficientContractBalanceFails() public {
@@ -495,15 +497,16 @@ contract VaultisTest is Test {
     }
 
     function testOwnerWithdrawRevertsWhenPoolInsufficient() public {
-        // deposit ETH into contract (increases contract balance but not ethPrizePool)
+        // Deposit ETH into the contract via the public deposit function
+        // This increases contract balance but not ethPrizePool
         vm.startPrank(user1);
-        vaultis.deposit{value: 5 ether}();
+        vaultis.deposit{value: 1 ether}();
         vm.stopPrank();
 
         // Owner attempts to withdraw but ethPrizePool is insufficient
-        vm.startPrank(user1); // owner is user1
         vm.expectRevert("Insufficient ETH prize pool");
-        vaultis.ownerWithdraw(1 ether);
+        vm.startPrank(user1); // owner is user1
+        vaultis.ownerWithdraw(2 ether);
         vm.stopPrank();
     }
 }
