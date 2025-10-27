@@ -114,7 +114,7 @@ contract VaultisTest is Test {
     }
 
     function testOwnerWithdrawInsufficientContractBalanceFails() public {
-        vm.expectRevert("Insufficient contract balance");
+        vm.expectRevert("Insufficient ETH prize pool");
         vm.startPrank(user1);
         vaultis.ownerWithdraw(1 ether);
         vm.stopPrank();
@@ -491,6 +491,19 @@ contract VaultisTest is Test {
         vaultis.solveRiddleAndClaim("correct_answer");
         vm.expectRevert("Already claimed");
         vaultis.solveRiddleAndClaim("correct_answer"); // Try to claim again
+        vm.stopPrank();
+    }
+
+    function testOwnerWithdrawRevertsWhenPoolInsufficient() public {
+        // deposit ETH into contract (increases contract balance but not ethPrizePool)
+        vm.startPrank(user1);
+        vaultis.deposit{value: 5 ether}();
+        vm.stopPrank();
+
+        // Owner attempts to withdraw but ethPrizePool is insufficient
+        vm.startPrank(user1); // owner is user1
+        vm.expectRevert("Insufficient ETH prize pool");
+        vaultis.ownerWithdraw(1 ether);
         vm.stopPrank();
     }
 }

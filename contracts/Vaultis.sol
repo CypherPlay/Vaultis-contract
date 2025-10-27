@@ -69,10 +69,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
     function ownerWithdraw(uint256 _amount) public onlyOwner nonReentrant {
         require(_amount > 0, "Owner withdrawal amount must be greater than zero");
-        require(address(this).balance >= _amount, "Insufficient contract balance");
+        require(ethPrizePool >= _amount, "Insufficient ETH prize pool");
         
         (bool success, ) = owner().call{value: _amount, gas: 200000}("");
         require(success, "Owner withdrawal failed");
+        ethPrizePool -= _amount;
         emit OwnerWithdrawal(owner(), _amount);
     }
 
