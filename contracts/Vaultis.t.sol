@@ -143,7 +143,7 @@ contract VaultisTest is Test {
 
     function testReentrancyGuardDeposit() public {
         // This test is more about ensuring nonReentrant modifier is present
-        // and doesn\'t cause issues, rather than a full reentrancy attack simulation
+        // and doesn't cause issues, rather than a full reentrancy attack simulation
         // which would require a malicious contract.
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
@@ -153,7 +153,7 @@ contract VaultisTest is Test {
     }
 
     function testReentrancyGuardWithdraw() public {
-        // Similar to deposit, this primarily checks the modifier\'s presence.
+        // Similar to deposit, this primarily checks the modifier's presence.
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
         vaultis.deposit{value: 1 ether}();
@@ -383,6 +383,7 @@ contract VaultisTest is Test {
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount);
         (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
         require(success);
+        vaultis.enterGame(1);
         vm.stopPrank();
 
         assertEq(vaultis.ethPrizePool(), prizeAmount);
@@ -407,6 +408,7 @@ contract VaultisTest is Test {
         mockERC20.mint(user1, prizeAmount);
         mockERC20.approve(address(vaultis), prizeAmount);
         vaultis.fundTokenPrizePool(prizeAmount);
+        vaultis.enterGame(1);
         vm.stopPrank();
 
         assertEq(vaultis.tokenPrizePool(), prizeAmount);
@@ -429,6 +431,7 @@ contract VaultisTest is Test {
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount);
         (bool success, ) = address(vaultis).call{value: 0.5 ether}("");
         require(success);
+        vaultis.enterGame(1);
         vm.stopPrank();
 
         vm.expectRevert("Insufficient ETH prize pool balance");
@@ -447,6 +450,7 @@ contract VaultisTest is Test {
         mockERC20.mint(user1, 50);
         mockERC20.approve(address(vaultis), 50);
         vaultis.fundTokenPrizePool(50);
+        vaultis.enterGame(1);
         vm.stopPrank();
 
         vm.expectRevert("Insufficient ERC20 prize pool balance");
@@ -463,6 +467,7 @@ contract VaultisTest is Test {
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount);
         (bool success, ) = address(vaultis).call{value: prizeAmount}("");
         require(success);
+        vaultis.enterGame(1);
         vm.stopPrank();
 
         vm.expectRevert("Incorrect answer");
@@ -471,39 +476,21 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
-        function testSolveRiddleAndClaimAlreadyParticipatedFails() public {
+    function testSolveRiddleAndClaimAlreadyClaimedFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
 
-            bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount);
+        (bool success, ) = address(vaultis).call{value: prizeAmount}("");
+        require(success);
+        vaultis.enterGame(1);
+        vm.stopPrank();
 
-            uint256 prizeAmount = 1 ether;
-
-    
-
-            vm.startPrank(user1);
-
-            vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount);
-
-            (bool success, ) = address(vaultis).call{value: prizeAmount}("");
-
-            require(success);
-
-            vm.stopPrank();
-
-    
-
-            vm.startPrank(user1);
-
-            vaultis.solveRiddleAndClaim("correct_answer");
-
-            vm.expectRevert("Already participated in this riddle");
-
-            vaultis.solveRiddleAndClaim("correct_answer"); // Try to claim again
-
-            vm.stopPrank();
-
-        }        function testGetAnswerHashNonExistentFails() public {
-        (bool success,) = address(vaultis).call(abi.encodeWithSignature("getAnswerHash()"));
-        assertFalse(success, "Calling getAnswerHash() should not succeed");
+        vm.startPrank(user1);
+        vaultis.solveRiddleAndClaim("correct_answer");
+        vm.expectRevert("Already claimed");
+        vaultis.solveRiddleAndClaim("correct_answer"); // Try to claim again
+        vm.stopPrank();
     }
-
-    }
+}

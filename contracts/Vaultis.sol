@@ -21,7 +21,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
     enum PrizeType { ETH, ERC20 }
     PrizeType public prizeType;
 
-    mapping(uint256 => mapping(address => bool)) public hasParticipated;
+    // Track entry and claim independently to avoid blocking legitimate claims
+    mapping(uint256 => mapping(address => bool)) public hasParticipated; // entered
+    mapping(uint256 => mapping(address => bool)) public hasClaimed;      // claimed
     bytes32 internal sAnswerHash;
 
     event Deposit(address indexed user, uint256 amount);
@@ -35,9 +37,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
     function deposit() public payable nonReentrant {
         require(msg.value > 0, "Deposit amount must be greater than zero");
-        require(!hasParticipated[currentRiddleId][msg.sender], "Already participated in this riddle");
         balances[msg.sender] += msg.value;
-        hasParticipated[currentRiddleId][msg.sender] = true;
         emit Deposit(msg.sender, msg.value);
     }
 
@@ -97,10 +97,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
     function solveRiddleAndClaim(string calldata _answer) public nonReentrant {
         require(currentRiddleId > 0, "No active riddle");
-        require(!hasParticipated[currentRiddleId][msg.sender], "Already participated in this riddle");
+        require(hasParticipated[currentRiddleId][msg.sender], "Must enter the game first");
+        require(!hasClaimed[currentRiddleId][msg.sender], "Already claimed");
         require(keccak256(abi.encodePacked(_answer)) == sAnswerHash, "Incorrect answer");
 
-        hasParticipated[currentRiddleId][msg.sender] = true;
+        hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         _distributePrize(msg.sender, prizeAmount);
     }
 
@@ -108,7 +109,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(currentRiddleId > 0, "No active riddle");
         require(!hasParticipated[_riddleId][msg.sender], "Already participated in this riddle");
-        hasParticipated[_riddleId][msg.sender] = true;
+        hasParticipated[_riddleId][msg.sender] = true; // mark entered
     }
 
     /**
