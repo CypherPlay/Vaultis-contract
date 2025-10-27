@@ -76,7 +76,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         emit OwnerWithdrawal(owner(), _amount);
     }
 
-    function _distributePrize(address _winner, uint256 _amount) internal nonReentrant {
+    function _distributePrize(address _winner, uint256 _amount) internal {
         require(_winner != address(0), "Winner address cannot be zero");
         require(_amount > 0, "Prize amount must be greater than zero");
 
@@ -102,6 +102,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         hasParticipated[currentRiddleId][msg.sender] = true;
         _distributePrize(msg.sender, prizeAmount);
+    }
+
+    function enterGame(uint256 _riddleId) public nonReentrant {
+        require(_riddleId == currentRiddleId, "Not the active riddle ID");
+        require(currentRiddleId > 0, "No active riddle");
+        require(!hasParticipated[_riddleId][msg.sender], "Already participated in this riddle");
+        hasParticipated[_riddleId][msg.sender] = true;
     }
 
     /**
