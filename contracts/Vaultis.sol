@@ -37,6 +37,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     event PrizeFunded(address indexed funder, uint256 amount, PrizeType prizeType);
     event EthReceived(address indexed sender, uint256 amount);
     event EntryFeeCollected(address indexed player, address indexed token, uint256 amount, uint256 indexed riddleId);
+    event PlayerEntered(address indexed player, uint256 indexed riddleId);
 
 
     function deposit() public payable nonReentrant {
@@ -133,6 +134,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         }
 
         hasParticipated[_riddleId][msg.sender] = true; // mark entered
+        emit PlayerEntered(msg.sender, _riddleId);
     }
 
     /**
