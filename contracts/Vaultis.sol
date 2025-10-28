@@ -128,6 +128,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             token.safeTransferFrom(msg.sender, address(this), entryFeeAmount);
             uint256 received = token.balanceOf(address(this)) - beforeBal;
             require(received == entryFeeAmount, "Entry fee mismatch (FOT not supported)");
+            require(token.balanceOf(address(this)) >= beforeBal + entryFeeAmount, "ERC20 transfer failed in enterGame");
             emit EntryFeeCollected(msg.sender, address(token), received, _riddleId);
         }
 
