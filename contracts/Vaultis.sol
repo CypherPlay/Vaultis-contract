@@ -117,9 +117,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _riddleId The ID of the riddle the player wishes to enter.
      */
     function enterGame(uint256 _riddleId) public nonReentrant {
+        require(!hasParticipated[_riddleId][msg.sender], "Already participated in this riddle");
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(currentRiddleId > 0, "No active riddle");
-        require(!hasParticipated[_riddleId][msg.sender], "Already participated in this riddle");
         
         if (entryFeeAmount > 0) {
             IERC20 token = entryFeeToken;
