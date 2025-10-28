@@ -36,6 +36,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     event PrizeDistributed(address indexed winner, uint256 amount, PrizeType prizeType);
     event PrizeFunded(address indexed funder, uint256 amount, PrizeType prizeType);
     event EthReceived(address indexed sender, uint256 amount);
+    event EntryFeeCollected(address indexed player, address indexed token, uint256 amount, uint256 indexed riddleId);
 
 
     function deposit() public payable nonReentrant {
@@ -109,14 +110,25 @@ contract Vaultis is Ownable, ReentrancyGuard {
         _distributePrize(msg.sender, prizeAmount);
     }
 
+    /**
+     * @notice Allows a player to enter the game for a specific riddle.
+     * @dev This function handles the collection of entry fees. It requires an exact transfer amount,
+     *      meaning fee-on-transfer (FOT) tokens are NOT supported.
+     * @param _riddleId The ID of the riddle the player wishes to enter.
+     */
     function enterGame(uint256 _riddleId) public nonReentrant {
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(currentRiddleId > 0, "No active riddle");
         require(!hasParticipated[_riddleId][msg.sender], "Already participated in this riddle");
         
         if (entryFeeAmount > 0) {
-            require(address(entryFeeToken) != address(0), "Entry fee token not set");
-            entryFeeToken.safeTransferFrom(msg.sender, address(this), entryFeeAmount);
+            IERC20 token = entryFeeToken;
+            require(address(token) != address(0), "Entry fee token not set");
+            uint256 beforeBal = token.balanceOf(address(this));
+            token.safeTransferFrom(msg.sender, address(this), entryFeeAmount);
+            uint256 received = token.balanceOf(address(this)) - beforeBal;
+            require(received == entryFeeAmount, "Entry fee mismatch (FOT not supported)");
+            emit EntryFeeCollected(msg.sender, address(token), received, _riddleId);
         }
 
         hasParticipated[_riddleId][msg.sender] = true; // mark entered
