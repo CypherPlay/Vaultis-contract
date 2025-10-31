@@ -38,6 +38,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     event EthReceived(address indexed sender, uint256 amount);
     event EntryFeeCollected(address indexed player, address indexed token, uint256 amount, uint256 indexed riddleId);
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
+    event RiddleSet(uint256 indexed riddleId, address prizeToken);
 
 
     function deposit() public payable nonReentrant {
@@ -191,7 +192,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         entryFeeAmount = _entryFeeAmount;
         ethPrizePool = 0;
         tokenPrizePool = 0;
-        emit RiddleSet(_riddleId, _answerHash, _prizeType, _prizeTokenAddress, _prizeAmount, _entryFeeAmount, _entryFeeTokenAddress);
+        emit RiddleSet(_riddleId, _prizeTokenAddress);
     }
 
 
