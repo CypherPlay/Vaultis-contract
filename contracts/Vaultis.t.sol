@@ -364,6 +364,22 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
+    function testFundTokenPrizePoolNonOwnerFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        uint256 prizeAmount = 500;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, 0, address(0));
+        vm.stopPrank();
+
+        mockERC20.mint(user2, 1000);
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), 500);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user2));
+        vaultis.fundTokenPrizePool(500);
+        vm.stopPrank();
+    }
+
     function testTokenPrizeFundingInsufficientAllowanceFails() public {
         bytes32 answerHash = keccak256(abi.encodePacked("answer"));
         uint256 prizeAmount = 500;
