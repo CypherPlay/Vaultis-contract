@@ -255,6 +255,17 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
+    function testSetRiddleOwnerSucceeds() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        vm.startPrank(user1); // owner
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), 500, 0, address(0));
+        // assert riddle state or emitted event
+        assertEq(vaultis.currentRiddleId(), 1);
+        assertEq(vaultis.prizeAmount(), 500);
+        assertEq(vaultis.getPrizeToken(), address(mockERC20));
+        vm.stopPrank();
+    }
+
     function testSetRiddleZeroPrizeAmountFails() public {
         vm.expectRevert("Prize amount must be greater than zero");
         vm.startPrank(user1);
@@ -363,6 +374,8 @@ contract VaultisTest is Test {
         vaultis.fundTokenPrizePool(500);
         vm.stopPrank();
     }
+
+
 
     function testTokenPrizeFundingInsufficientAllowanceFails() public {
         bytes32 answerHash = keccak256(abi.encodePacked("answer"));
