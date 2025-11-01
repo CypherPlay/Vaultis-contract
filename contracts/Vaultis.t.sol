@@ -194,7 +194,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, 0, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
         vm.stopPrank();
 
         assertEq(vaultis.currentRiddleId(), 1);
@@ -232,7 +232,7 @@ contract VaultisTest is Test {
         bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
 
         vm.startPrank(user1);
-        vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
+        vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.expectRevert("Riddle ID must be greater than current");
         vaultis.setRiddle(3, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.stopPrank();
@@ -242,7 +242,7 @@ contract VaultisTest is Test {
         bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
 
         vm.startPrank(user1);
-        vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
+        vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.expectRevert("Riddle ID must be greater than current");
         vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.stopPrank();
@@ -251,14 +251,14 @@ contract VaultisTest is Test {
     function testSetRiddleNonOwnerFails() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user2));
         vm.startPrank(user2);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.stopPrank();
     }
 
     function testSetRiddleOwnerSucceeds() public {
         bytes32 answerHash = keccak256(abi.encodePacked("answer"));
         vm.startPrank(user1); // owner
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), 500, 0, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), 500, address(0));
         // assert riddle state or emitted event
         assertEq(vaultis.currentRiddleId(), 1);
         assertEq(vaultis.prizeAmount(), 500);
@@ -269,14 +269,14 @@ contract VaultisTest is Test {
     function testSetRiddleZeroPrizeAmountFails() public {
         vm.expectRevert("Prize amount must be greater than zero");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 0, 0, address(0));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 0, address(0));
         vm.stopPrank();
     }
 
     function testSetRiddleErc20ZeroTokenAddressFails() public {
         vm.expectRevert("Prize token address cannot be zero for ERC20 prize");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, address(0), 100, 0, address(0));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, address(0), 100, address(0));
         vm.stopPrank();
     }
 
@@ -285,7 +285,7 @@ contract VaultisTest is Test {
         address nonContractAddress = address(uint160(uint256(keccak256(abi.encodePacked("nonContract")))));
         vm.expectRevert("Prize token has no contract code");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, nonContractAddress, 100, 0, address(0));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, nonContractAddress, 100, address(0));
         vm.stopPrank();
     }
 
@@ -294,7 +294,7 @@ contract VaultisTest is Test {
         address notAnErc20 = address(new Vaultis(user1)); // Use Vaultis itself as a non-ERC20 contract
         vm.expectRevert("Invalid ERC-20 token: totalSupply call failed");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, notAnErc20, 100, 0, address(0));
+        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, notAnErc20, 100, address(0));
         vm.stopPrank();
     }
 
