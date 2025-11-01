@@ -104,7 +104,7 @@ contract VaultisTest is Test {
 
         // Set an active riddle
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, 0, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
         vm.stopPrank();
 
         // user2 enters the game
@@ -210,7 +210,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 100 * 10 ** mockERC20.decimals();
 
         vm.startPrank(user1);
-        vaultis.setRiddle(2, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, 0, address(0));
+        vaultis.setRiddle(2, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
         vm.stopPrank();
 
         assertEq(vaultis.currentRiddleId(), 2);
@@ -224,7 +224,7 @@ contract VaultisTest is Test {
     function testSetRiddleZeroIdFails() public {
         vm.expectRevert("Riddle ID cannot be zero");
         vm.startPrank(user1);
-        vaultis.setRiddle(0, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
+        vaultis.setRiddle(0, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.stopPrank();
     }
 
@@ -234,7 +234,7 @@ contract VaultisTest is Test {
         vm.startPrank(user1);
         vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
         vm.expectRevert("Riddle ID must be greater than current");
-        vaultis.setRiddle(3, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
+        vaultis.setRiddle(3, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.stopPrank();
     }
 
@@ -244,7 +244,7 @@ contract VaultisTest is Test {
         vm.startPrank(user1);
         vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
         vm.expectRevert("Riddle ID must be greater than current");
-        vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, 0, address(0));
+        vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(0));
         vm.stopPrank();
     }
 
