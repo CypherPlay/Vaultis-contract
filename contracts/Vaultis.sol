@@ -19,7 +19,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public tokenPrizePool;
     uint256 public prizeAmount;
     IERC20 public entryFeeToken;
-    uint256 public constant ENTRY_FEE = 100;
+    uint256 public constant ENTRY_FEE = 1 ether;
 
     enum PrizeType { ETH, ERC20 }
     PrizeType public prizeType;
