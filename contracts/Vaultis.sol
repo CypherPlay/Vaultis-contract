@@ -52,6 +52,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
      */
     event OwnerWithdrawal(address indexed owner, uint256 amount);
     /**
+     * @notice Emitted when the contract owner withdraws ERC20 tokens from the token prize pool.
+     * @param amount The amount of ERC20 tokens withdrawn by the owner.
+     */
+    event OwnerWithdrawTokens(uint256 amount);
+    /**
      * @notice Emitted when a prize is successfully distributed to a winner.
      * @param winner The address of the prize winner.
      * @param amount The amount of the prize distributed.
@@ -166,6 +171,22 @@ contract Vaultis is Ownable, ReentrancyGuard {
         (bool success, ) = owner().call{value: _amount, gas: 200000}("");
         require(success, "Owner withdrawal failed");
         emit OwnerWithdrawal(owner(), _amount);
+    }
+
+    /**
+     * @notice Allows the contract owner to withdraw ERC20 tokens from the `tokenPrizePool`.
+     * @dev This function can only be called by the contract owner.
+     * @dev It ensures that the requested amount is available in the prize pool and performs a safe transfer.
+     * @param _amount The amount of ERC20 tokens to withdraw from the token prize pool.
+     */
+    function ownerWithdrawTokens(uint256 _amount) external onlyOwner nonReentrant {
+        require(_amount > 0, "Owner token withdrawal amount must be greater than zero");
+        require(tokenPrizePool >= _amount, "Insufficient token prize pool");
+        require(address(prizeToken) != address(0), "Prize token not set");
+        
+        tokenPrizePool -= _amount;
+        prizeToken.safeTransfer(owner(), _amount);
+        emit OwnerWithdrawTokens(_amount);
     }
 
     /**
