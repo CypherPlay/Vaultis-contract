@@ -45,26 +45,7 @@ contract ReentrancyAttack {
         // The actual recursion depth will be limited by Vaultis's gas stipend for external calls.
     }
 
-    /// @notice Fallback function to receive Ether.
-    /// @dev This function is called when Ether is sent to the contract.
-    /// @dev It implements controlled reentrancy by attempting to call `ownerWithdraw` on Vaultis
-    /// @dev if the current recursion depth allows and there's enough gas.
-    /// @dev The recursion is limited by `maxRecursions` and the gas stipend from Vaultis.
-    /// @param maxRecursions The maximum number of recursive calls allowed.
-    function _reenterWithdraw(uint256 amount, uint256 maxRecursions) internal {
-        if (maxRecursions == 0) {
-            return;
-        }
 
-        // Check remaining gas to prevent out-of-gas errors during deep recursion.
-        // Vaultis.ownerWithdraw uses call{gas:200000}, which will limit deep recursion.
-        if (gasleft() < 250000) { // A bit more than Vaultis's gas stipend to allow for some execution
-            return;
-        }
-
-        // Attempt to withdraw again. This will trigger another call to receive().
-        vaultis.ownerWithdraw(amount);
-    }
 
     /// @notice Fallback function to receive Ether.
     /// @dev This function is called when Ether is sent to the contract.

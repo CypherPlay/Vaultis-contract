@@ -220,6 +220,15 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @dev The player must have already entered the game for the current riddle and not yet claimed a prize.
      * @param _answer The player's proposed answer to the riddle.
      */
+    /**
+     * @dev IMPORTANT DEPLOYMENT NOTE: The hashing mechanism for answers was changed from `abi.encodePacked` to `abi.encode`
+     *      for improved security. This is a BREAKING CHANGE for existing riddles.
+     *      Deployment to an existing system requires a migration plan:
+     *      1. Ensure no active riddles are using the old `abi.encodePacked` hashing.
+     *      2. If active riddles exist, they must be resolved or invalidated safely.
+     *      3. A one-time migration script might be needed to re-hash existing answers if applicable,
+     *         or new riddle creation should be locked until existing prize pools are cleared.
+     */
     function solveRiddleAndClaim(string calldata _answer) public nonReentrant {
         require(currentRiddleId > 0, "No active riddle");
         require(hasParticipated[currentRiddleId][msg.sender], "Must enter the game first");

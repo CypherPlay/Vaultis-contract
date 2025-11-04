@@ -347,7 +347,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         mockERC20.mint(user2, 1000);
@@ -363,7 +363,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 5 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         mockERC20.mint(user1, 1000);
@@ -403,7 +403,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         // user1 has no tokens
@@ -473,7 +473,10 @@ contract VaultisTest is Test {
         bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
+        vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -486,10 +489,13 @@ contract VaultisTest is Test {
     function testSolveRiddleAndClaimInsufficientErc20PrizeFails() public {
         bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 100;
+        vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         mockERC20.mint(user1, 50);
         mockERC20.approve(address(vaultis), 50);
         vaultis.fundTokenPrizePool(50);
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
