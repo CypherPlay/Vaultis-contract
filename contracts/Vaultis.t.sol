@@ -323,7 +323,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         assertEq(vaultis.tokenPrizePool(), 0);
@@ -382,7 +382,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         mockERC20.mint(user1, 1000);
@@ -420,7 +420,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
         require(success);
         vaultis.enterGame(1);
@@ -498,7 +498,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         (bool success, ) = address(vaultis).call{value: prizeAmount}("");
         require(success);
         vaultis.enterGame(1);
@@ -515,7 +515,7 @@ contract VaultisTest is Test {
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         (bool success, ) = address(vaultis).call{value: prizeAmount}("");
         require(success);
         vaultis.enterGame(1);
