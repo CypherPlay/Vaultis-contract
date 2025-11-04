@@ -99,7 +99,7 @@ contract VaultisTest is Test {
     }
 
     function testEnterGame() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
         uint256 prizeAmount = 1 ether;
 
         // Set an active riddle
@@ -109,6 +109,8 @@ contract VaultisTest is Test {
 
         // user2 enters the game
         vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -190,7 +192,7 @@ contract VaultisTest is Test {
     }
 
     function testSetRiddleEthPrize() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
@@ -206,7 +208,7 @@ contract VaultisTest is Test {
     }
 
     function testSetRiddleErc20Prize() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
         uint256 prizeAmount = 100 * 10 ** mockERC20.decimals();
 
         vm.startPrank(user1);
@@ -224,12 +226,12 @@ contract VaultisTest is Test {
     function testSetRiddleZeroIdFails() public {
         vm.expectRevert("Riddle ID cannot be zero");
         vm.startPrank(user1);
-        vaultis.setRiddle(0, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, address(mockERC20));
+        vaultis.setRiddle(0, keccak256(abi.encode("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, address(mockERC20));
         vm.stopPrank();
     }
 
     function testSetRiddleBackdatingFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
 
         vm.startPrank(user1);
         vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(mockERC20));
@@ -239,7 +241,7 @@ contract VaultisTest is Test {
     }
 
     function testSetRiddleSameIdFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
 
         vm.startPrank(user1);
         vaultis.setRiddle(5, answerHash, Vaultis.PrizeType.ETH, address(0), 1 ether, address(mockERC20));
@@ -251,12 +253,12 @@ contract VaultisTest is Test {
     function testSetRiddleNonOwnerFails() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user2));
         vm.startPrank(user2);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, address(mockERC20));
+        vaultis.setRiddle(1, keccak256(abi.encode("answer")), Vaultis.PrizeType.ETH, address(0), 1 ether, address(mockERC20));
         vm.stopPrank();
     }
 
     function testSetRiddleOwnerSucceeds() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         vm.startPrank(user1); // owner
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), 500, address(mockERC20));
         // assert riddle state or emitted event
@@ -269,23 +271,23 @@ contract VaultisTest is Test {
     function testSetRiddleZeroPrizeAmountFails() public {
         vm.expectRevert("Prize amount must be greater than zero");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ETH, address(0), 0, address(mockERC20));
+        vaultis.setRiddle(1, keccak256(abi.encode("answer")), Vaultis.PrizeType.ETH, address(0), 0, address(mockERC20));
         vm.stopPrank();
     }
 
     function testSetRiddleErc20ZeroTokenAddressFails() public {
         vm.expectRevert("Prize token address cannot be zero for ERC20 prize");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, address(0), 100, address(mockERC20));
+        vaultis.setRiddle(1, keccak256(abi.encode("answer")), Vaultis.PrizeType.ERC20, address(0), 100, address(mockERC20));
         vm.stopPrank();
     }
 
     function testSetRiddleErc20InvalidTokenContractFails() public {
         // Use a regular address that is not a contract
-        address nonContractAddress = address(uint160(uint256(keccak256(abi.encodePacked("nonContract")))));
+        address nonContractAddress = address(uint160(uint256(keccak256(abi.encode("nonContract")))));
         vm.expectRevert("Prize token has no contract code");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, nonContractAddress, 100, address(mockERC20));
+        vaultis.setRiddle(1, keccak256(abi.encode("answer")), Vaultis.PrizeType.ERC20, nonContractAddress, 100, address(mockERC20));
         vm.stopPrank();
     }
 
@@ -294,16 +296,16 @@ contract VaultisTest is Test {
         address notAnErc20 = address(new Vaultis(user1)); // Use Vaultis itself as a non-ERC20 contract
         vm.expectRevert("Invalid ERC-20 token: totalSupply call failed");
         vm.startPrank(user1);
-        vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, notAnErc20, 100, address(mockERC20));
+        vaultis.setRiddle(1, keccak256(abi.encode("answer")), Vaultis.PrizeType.ERC20, notAnErc20, 100, address(mockERC20));
         vm.stopPrank();
     }
 
     function testEthPrizeFunding() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 5 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         assertEq(vaultis.ethPrizePool(), 0);
@@ -319,11 +321,11 @@ contract VaultisTest is Test {
     }
 
     function testTokenPrizeFunding() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         assertEq(vaultis.tokenPrizePool(), 0);
@@ -341,11 +343,11 @@ contract VaultisTest is Test {
     }
 
     function testTokenPrizeFundingNonOwnerFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         mockERC20.mint(user2, 1000);
@@ -357,11 +359,11 @@ contract VaultisTest is Test {
     }
 
     function testTokenPrizeFundingWrongPrizeTypeFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 5 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         mockERC20.mint(user1, 1000);
@@ -378,11 +380,11 @@ contract VaultisTest is Test {
 
 
     function testTokenPrizeFundingInsufficientAllowanceFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         mockERC20.mint(user1, 1000);
@@ -397,11 +399,11 @@ contract VaultisTest is Test {
     }
 
     function testTokenPrizeFundingInsufficientBalanceFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("answer"));
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 500;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         vm.stopPrank();
 
         // user1 has no tokens
@@ -416,13 +418,15 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimEthPrize() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
         require(success);
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -439,7 +443,7 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimErc20Prize() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 100;
 
         vm.startPrank(user1);
@@ -448,6 +452,8 @@ contract VaultisTest is Test {
         mockERC20.mint(user1, prizeAmount);
         mockERC20.approve(address(vaultis), prizeAmount);
         vaultis.fundTokenPrizePool(prizeAmount);
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -464,10 +470,13 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimInsufficientEthPrizeFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
+        vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -478,12 +487,15 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimInsufficientErc20PrizeFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 100;
+        vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
         mockERC20.mint(user1, 50);
         mockERC20.approve(address(vaultis), 50);
         vaultis.fundTokenPrizePool(50);
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -494,13 +506,15 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimIncorrectAnswerFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         (bool success, ) = address(vaultis).call{value: prizeAmount}("");
         require(success);
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -511,13 +525,15 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimAlreadyClaimedFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        bytes32 answerHash = keccak256(abi.encode("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         (bool success, ) = address(vaultis).call{value: prizeAmount}("");
         require(success);
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
@@ -543,9 +559,9 @@ contract VaultisTest is Test {
     }
 
     function testEnterGameWithEntryFeeERC20Success() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
         uint256 prizeAmount = 1 ether;
-        uint256 entryFee = vaultis.ENTRY_FEE; // Expecting 100, but FOT token will transfer less
+        uint256 entryFee = vaultis.ENTRY_FEE();
 
         vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
@@ -563,9 +579,9 @@ contract VaultisTest is Test {
     }
 
     function testEnterGameWithEntryFeeERC20FeeOnTransferFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
         uint256 prizeAmount = 1 ether;
-        uint256 entryFee = vaultis.ENTRY_FEE;
+        uint256 entryFee = vaultis.ENTRY_FEE();
 
         vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20FeeOnTransfer));
@@ -579,18 +595,124 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
-    function testEnterGameWithEntryFeeZeroAmount() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+
+    function testSetRiddleRevertsWithNonEmptyPrizePools() public {
+        bytes32 answerHash = keccak256(abi.encode("answer"));
         uint256 prizeAmount = 1 ether;
 
+        // Set initial riddle and fund ETH prize pool
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
         vm.stopPrank();
 
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+
+        // Attempt to set a new riddle while ETH prize pool is not empty
+        vm.expectRevert("Must withdraw ETH prize pool before new riddle");
+        vm.startPrank(user1);
+        vaultis.setRiddle(2, keccak256(abi.encode("new_answer")), Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // Withdraw ETH prize pool
+        vm.startPrank(user1);
+        vaultis.ownerWithdraw(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), 0);
+
+        // Set initial riddle and fund ERC20 prize pool
+        vm.startPrank(user1);
+        vaultis.setRiddle(3, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+
+        // Withdraw token prize pool
+        vm.startPrank(user1);
+        vaultis.ownerWithdrawTokens(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), 0);
+
+        // Now setting a new riddle should succeed
+        vm.startPrank(user1);
+        vaultis.setRiddle(4, keccak256(abi.encode("another_answer")), Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        assertEq(vaultis.currentRiddleId(), 4);
+    }
+
+    function testOwnerWithdrawTokensSuccess() public {
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        mockERC20.mint(user1, prizeAmount);
+        vm.startPrank(user1);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+        assertEq(mockERC20.balanceOf(address(vaultis)), prizeAmount);
+        uint256 initialOwnerBalance = mockERC20.balanceOf(user1);
+
+        vm.startPrank(user1);
+        vaultis.ownerWithdrawTokens(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), 0);
+        assertEq(mockERC20.balanceOf(address(vaultis)), 0);
+        assertEq(mockERC20.balanceOf(user1), initialOwnerBalance + prizeAmount);
+    }
+
+    function testOwnerWithdrawTokensInsufficientPoolFails() public {
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        mockERC20.mint(user1, 50);
+        vm.startPrank(user1);
+        mockERC20.approve(address(vaultis), 50);
+        vaultis.fundTokenPrizePool(50);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), 50);
+
+        vm.expectRevert("Insufficient token prize pool");
+        vm.startPrank(user1);
+        vaultis.ownerWithdrawTokens(100);
+        vm.stopPrank();
+    }
+
+    function testOwnerWithdrawTokensNonOwnerFails() public {
+        bytes32 answerHash = keccak256(abi.encode("test_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        mockERC20.mint(user1, prizeAmount);
+        vm.startPrank(user1);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user2));
         vm.startPrank(user2);
-        vaultis.enterGame(1);
+        vaultis.ownerWithdrawTokens(prizeAmount);
         vm.stopPrank();
-
-        assertTrue(vaultis.hasParticipated(1, user2));
     }
 }
