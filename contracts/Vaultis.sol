@@ -152,7 +152,6 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _prizeType The type of prize (ETH or ERC20).
      * @param _prizeTokenAddress The address of the ERC20 token if prizeType is ERC20, otherwise address(0).
      * @param _prizeAmount The amount of the prize.
-     * @param _entryFeeAmount The amount of the entry fee.
      * @param _entryFeeTokenAddress The address of the ERC20 token for the entry fee, otherwise address(0).
      */
     function setRiddle(uint256 _riddleId, bytes32 _answerHash, PrizeType _prizeType, address _prizeTokenAddress, uint256 _prizeAmount, address _entryFeeTokenAddress) public onlyOwner {
