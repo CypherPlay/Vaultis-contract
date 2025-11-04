@@ -162,12 +162,19 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_amount > 0, "Owner withdrawal amount must be greater than zero");
         require(ethPrizePool >= _amount, "Insufficient ETH prize pool");
         
+        ethPrizePool -= _amount;
         (bool success, ) = owner().call{value: _amount, gas: 200000}("");
         require(success, "Owner withdrawal failed");
-        ethPrizePool -= _amount;
         emit OwnerWithdrawal(owner(), _amount);
     }
 
+    /**
+     * @notice Distributes the prize to the winner based on the prize type.
+     * @dev Internal function that handles both ETH and ERC20 prize distribution.
+     *      Follows the Checks-Effects-Interactions pattern for security.
+     * @param _winner The address of the winner receiving the prize.
+     * @param _amount The amount of the prize to distribute.
+     */
     function _distributePrize(address _winner, uint256 _amount) internal {
         require(_winner != address(0), "Winner address cannot be zero");
         require(_amount > 0, "Prize amount must be greater than zero");
@@ -196,7 +203,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(currentRiddleId > 0, "No active riddle");
         require(hasParticipated[currentRiddleId][msg.sender], "Must enter the game first");
         require(!hasClaimed[currentRiddleId][msg.sender], "Already claimed");
-        require(keccak256(abi.encodePacked(_answer)) == sAnswerHash, "Incorrect answer");
+        require(keccak256(abi.encode(_answer)) == sAnswerHash, "Incorrect answer");
 
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         _distributePrize(msg.sender, prizeAmount);
@@ -220,7 +227,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             token.safeTransferFrom(msg.sender, address(this), ENTRY_FEE);
             uint256 received = token.balanceOf(address(this)) - beforeBal;
             require(received == ENTRY_FEE, "Entry fee mismatch (FOT not supported)");
-            require(token.balanceOf(address(this)) >= beforeBal + ENTRY_FEE, "ERC20 transfer failed in enterGame");
+
             emit EntryFeeCollected(msg.sender, address(token), received, _riddleId);
         }
 
@@ -276,12 +283,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
             entryFeeToken = IERC20(address(0));
         }
 
+        require(ethPrizePool == 0, "Must withdraw ETH prize pool before new riddle");
+        require(tokenPrizePool == 0, "Must withdraw token prize pool before new riddle");
         currentRiddleId = _riddleId;
         sAnswerHash = _answerHash;
         prizeType = _prizeType;
         prizeAmount = _prizeAmount;
-        ethPrizePool = 0;
-        tokenPrizePool = 0;
+
         emit RiddleInitialized(
             _riddleId,
             _answerHash,
