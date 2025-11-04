@@ -467,9 +467,7 @@ contract VaultisTest is Test {
         bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
-        vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, 0, address(0));
-        (bool success, ) = address(vaultis).call{value: 0.5 ether}("");
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(0));
         require(success);
         vaultis.enterGame(1);
         vm.stopPrank();
@@ -481,12 +479,7 @@ contract VaultisTest is Test {
     }
 
     function testSolveRiddleAndClaimInsufficientErc20PrizeFails() public {
-        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
-        uint256 prizeAmount = 100;
-
-        vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, 0, address(0));
-        // Fund with less than prizeAmount
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(0));
         mockERC20.mint(user1, 50);
         mockERC20.approve(address(vaultis), 50);
         vaultis.fundTokenPrizePool(50);
