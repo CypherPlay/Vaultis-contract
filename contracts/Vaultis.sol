@@ -35,6 +35,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public revealDelay; // minimum seconds to wait between commit and reveal (owner-settable)
     bytes32 internal sAnswerHash;
     mapping(uint256 => address[]) public winners;
+    mapping(uint256 => mapping(address => bool)) public isWinner;
 
     event WinnerFound(address indexed winner, uint256 indexed riddleId);
 
@@ -306,17 +307,12 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(_guessHash != bytes32(0), "Guess hash cannot be zero"); // Validate hash is not empty
         require(hasParticipated[_riddleId][msg.sender], "Must enter the game first");
+        require(committedGuesses[_riddleId][msg.sender] == bytes32(0), "Already submitted a guess for this riddle");
 
         if (_guessHash == sAnswerHash) {
-            bool isDuplicate = false;
-            for (uint256 i = 0; i < winners[_riddleId].length; i++) {
-                if (winners[_riddleId][i] == msg.sender) {
-                    isDuplicate = true;
-                    break;
-                }
-            }
-            if (!isDuplicate) {
+            if (!isWinner[_riddleId][msg.sender]) {
                 winners[_riddleId].push(msg.sender);
+                isWinner[_riddleId][msg.sender] = true;
                 emit WinnerFound(msg.sender, _riddleId);
             }
             emit GuessEvaluated(_riddleId, msg.sender, block.timestamp, true);
