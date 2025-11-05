@@ -21,6 +21,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public prizeAmount;
     IERC20 public entryFeeToken;
     uint256 public constant ENTRY_FEE = 1 ether;
+    IERC20 public retryToken;
+    uint256 public constant RETRY_COST = 0.1 ether; // Example retry cost
 
     enum PrizeType { ETH, ERC20 }
     PrizeType public prizeType;
