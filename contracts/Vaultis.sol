@@ -9,12 +9,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 contract Vaultis is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-    /**
-     * @notice Initializes the Vaultis contract, setting the initial owner.
-     * @param initialOwner The address that will be the initial owner of the contract.
-     */
     constructor(address initialOwner) Ownable(initialOwner) {
         entryFeeToken = IERC20(address(0));
+        revealDelay = 1 hours; // Default reveal delay
     }
     mapping(address => uint256) public balances;
     uint256 public currentRiddleId;
@@ -32,6 +29,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public hasParticipated; // entered
     mapping(uint256 => mapping(address => bool)) public hasClaimed;      // claimed
     mapping(uint256 => mapping(address => bytes32)) public committedGuesses; // Stores hashed guesses for commit-reveal
+    mapping(uint256 => mapping(address => uint256)) public committedAt; // timestamp when commit made
+    mapping(uint256 => mapping(address => bytes32)) public revealedGuessHash; // stores the hash of the revealed guess (or bytes32(0) if none)
+    mapping(uint256 => mapping(address => bool)) public hasRevealed; // replay protection / quick check
+    uint256 public revealDelay; // minimum seconds to wait between commit and reveal (owner-settable)
     bytes32 internal sAnswerHash;
 
     /**
@@ -41,6 +42,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param guessHash The hashed guess submitted by the player.
      */
     event GuessSubmitted(address indexed player, uint256 indexed riddleId, bytes32 guessHash);
+
+    /**
+     * @notice Emitted when a player successfully reveals their guess for a riddle.
+     * @param player The address of the player who revealed the guess.
+     * @param riddleId The ID of the riddle for which the guess was revealed.
+     * @param revealedHash The hash of the revealed guess.
+     */
+    event GuessRevealed(address indexed player, uint256 indexed riddleId, bytes32 revealedHash);
 
     /**
      * @notice Emitted when a user deposits ETH into their balance.
@@ -242,10 +251,16 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(currentRiddleId > 0, "No active riddle");
         require(hasParticipated[currentRiddleId][msg.sender], "Must enter the game first");
         require(!hasClaimed[currentRiddleId][msg.sender], "Already claimed");
-        require(keccak256(abi.encode(_answer)) == sAnswerHash, "Incorrect answer");
+        require(hasRevealed[currentRiddleId][msg.sender], "Must reveal guess before solving");
+
+        require(revealedGuessHash[currentRiddleId][msg.sender] == keccak256(abi.encodePacked(_answer)), "Revealed guess does not match provided answer");
 
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         _distributePrize(msg.sender, prizeAmount);
+
+        // Clear revealed state after successful claim to prevent replay
+        revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
+        hasRevealed[currentRiddleId][msg.sender] = false;
     }
 
     /**
@@ -284,12 +299,52 @@ contract Vaultis is Ownable, ReentrancyGuard {
     function submitGuess(uint256 _riddleId, bytes32 _guessHash) public nonReentrant {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
-        require(_guessHash != bytes30(0), "Guess hash cannot be zero"); // Validate hash is not empty
+        require(_guessHash != bytes32(0), "Guess hash cannot be zero"); // Validate hash is not empty
         require(hasParticipated[_riddleId][msg.sender], "Must enter the game first");
-        require(committedGuesses[_riddleId][msg.sender] == bytes30(0), "Already submitted a guess for this riddle");
+        require(committedGuesses[_riddleId][msg.sender] == bytes32(0), "Already submitted a guess for this riddle");
 
         committedGuesses[_riddleId][msg.sender] = _guessHash;
+        committedAt[_riddleId][msg.sender] = block.timestamp;
         emit GuessSubmitted(msg.sender, _riddleId, _guessHash);
+    }
+
+    /**
+     * @notice Allows a player to reveal their previously committed guess for a riddle.
+     * @dev This function is part of the commit-reveal scheme. It verifies the revealed guess
+     *      against the committed hash and ensures the reveal delay has passed.
+     * @param _riddleId The ID of the riddle for which the guess is being revealed.
+     * @param _guess The player's actual guess string.
+     */
+    function revealGuess(uint256 _riddleId, string memory _guess) public nonReentrant {
+        require(_riddleId > 0, "Riddle ID cannot be zero");
+        require(_riddleId == currentRiddleId, "Not the active riddle ID");
+        require(hasParticipated[_riddleId][msg.sender], "Must enter the game first");
+        require(committedGuesses[_riddleId][msg.sender] != bytes32(0), "No committed guess");
+        require(!hasRevealed[_riddleId][msg.sender], "Already revealed");
+        require(block.timestamp >= committedAt[_riddleId][msg.sender] + revealDelay, "Reveal too early");
+
+        bytes32 computedHash = keccak256(abi.encodePacked(_guess));
+        require(computedHash == committedGuesses[_riddleId][msg.sender], "Reveal does not match commit");
+
+        revealedGuessHash[_riddleId][msg.sender] = computedHash;
+        hasRevealed[_riddleId][msg.sender] = true;
+
+        // Optionally clear committedGuesses and committedAt to save gas/prevent reuse
+        committedGuesses[_riddleId][msg.sender] = bytes32(0);
+        committedAt[_riddleId][msg.sender] = 0;
+
+        emit GuessRevealed(msg.sender, _riddleId, computedHash);
+    }
+
+    /**
+     * @notice Allows the contract owner to set the minimum reveal delay for guesses.
+     * @dev The reveal delay is the minimum time in seconds that must pass between
+     *      committing a guess and revealing it.
+     * @param _newRevealDelay The new reveal delay in seconds.
+     */
+    function setRevealDelay(uint256 _newRevealDelay) public onlyOwner {
+        // Optional: Add sanity checks for _newRevealDelay (e.g., max/min bounds)
+        revealDelay = _newRevealDelay;
     }
 
     /**
