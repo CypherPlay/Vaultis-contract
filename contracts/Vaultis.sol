@@ -31,7 +31,16 @@ contract Vaultis is Ownable, ReentrancyGuard {
     // Track entry and claim independently to avoid blocking legitimate claims
     mapping(uint256 => mapping(address => bool)) public hasParticipated; // entered
     mapping(uint256 => mapping(address => bool)) public hasClaimed;      // claimed
+    mapping(uint256 => mapping(address => bytes32)) public committedGuesses; // Stores hashed guesses for commit-reveal
     bytes32 internal sAnswerHash;
+
+    /**
+     * @notice Emitted when a player successfully submits a hashed guess for a riddle.
+     * @param player The address of the player who submitted the guess.
+     * @param riddleId The ID of the riddle for which the guess was submitted.
+     * @param guessHash The hashed guess submitted by the player.
+     */
+    event GuessSubmitted(address indexed player, uint256 indexed riddleId, bytes32 guessHash);
 
     /**
      * @notice Emitted when a user deposits ETH into their balance.
@@ -263,6 +272,24 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         hasParticipated[_riddleId][msg.sender] = true; // mark entered
         emit PlayerEntered(msg.sender, _riddleId);
+    }
+
+    /**
+     * @notice Allows a player to submit a hashed guess for a specific riddle.
+     * @dev This function is part of a commit-reveal scheme to prevent front-running.
+     *      Players submit a hash of their guess first, and later reveal the actual guess.
+     * @param _riddleId The ID of the riddle for which the guess is being submitted.
+     * @param _guessHash The keccak256 hash of the player's guess.
+     */
+    function submitGuess(uint256 _riddleId, bytes32 _guessHash) public nonReentrant {
+        require(_riddleId > 0, "Riddle ID cannot be zero");
+        require(_riddleId == currentRiddleId, "Not the active riddle ID");
+        require(_guessHash != bytes30(0), "Guess hash cannot be zero"); // Validate hash is not empty
+        require(hasParticipated[_riddleId][msg.sender], "Must enter the game first");
+        require(committedGuesses[_riddleId][msg.sender] == bytes30(0), "Already submitted a guess for this riddle");
+
+        committedGuesses[_riddleId][msg.sender] = _guessHash;
+        emit GuessSubmitted(msg.sender, _riddleId, _guessHash);
     }
 
     /**
