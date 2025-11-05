@@ -10,6 +10,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract Vaultis is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     constructor(address initialOwner, address _retryTokenAddress) Ownable(initialOwner) {
+        require(_retryTokenAddress != address(0), "Retry token address cannot be zero");
+        require(address(_retryTokenAddress).code.length > 0, "Retry token has no contract code");
+        try IERC20(_retryTokenAddress).totalSupply() returns (uint256) {
+            // Token is valid
+        } catch {
+            revert("Invalid ERC-20 token for retry: totalSupply call failed");
+        }
         entryFeeToken = IERC20(address(0));
         revealDelay = 1 hours; // Default reveal delay
         retryToken = IERC20(_retryTokenAddress);
@@ -24,6 +31,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public constant ENTRY_FEE = 1 ether;
     IERC20 public retryToken;
     uint256 public constant RETRY_COST = 0.1 ether; // Example retry cost
+    uint256 public constant MAX_RETRIES = 3; // Max retries per player per riddle
 
     enum PrizeType { ETH, ERC20 }
     PrizeType public prizeType;
@@ -314,8 +322,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
      */
     function purchaseRetry(uint256 _riddleId) public nonReentrant {
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
+        require(hasParticipated[_riddleId][msg.sender], "Must participate in the riddle first");
         require(address(retryToken) != address(0), "Retry token not set");
-        require(RETRY_COST > 0, "Retry cost must be greater than zero");
+        require(playerRetries[_riddleId][msg.sender] < MAX_RETRIES, "Max retries reached");
 
         // Ensure player has enough retry tokens
         retryToken.safeTransferFrom(msg.sender, address(this), RETRY_COST);

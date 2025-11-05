@@ -40,8 +40,8 @@ contract VaultisTest is Test {
     function setUp() public {
         user1 = address(uint160(uint256(keccak256(abi.encodePacked("user1")))));
         user2 = address(uint160(uint256(keccak256(abi.encodePacked("user2")))));
-        vaultis = new Vaultis(user1, address(mockERC20));
         mockERC20 = new MockERC20("MockToken", "MTK");
+        vaultis = new Vaultis(user1, address(mockERC20));
         mockERC20FeeOnTransfer = new MockERC20FeeOnTransfer("FeeToken", "FOT", 5); // 5% fee
         vm.deal(address(this), 100 ether); // Give the test contract some Ether to receive withdrawals and fund prizes
         vm.deal(user1, 100 ether);
@@ -163,7 +163,7 @@ contract VaultisTest is Test {
         bytes32 guessHash = keccak256(abi.encodePacked("my_guess"));
         vm.startPrank(user1);
         vaultis.submitGuess(1, guessHash);
-        vm.expectRevert("Already submitted a guess for this riddle");
+        vm.expectRevert("No retries available");
         vaultis.submitGuess(1, guessHash);
         vm.stopPrank();
     }
