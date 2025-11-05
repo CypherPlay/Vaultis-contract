@@ -9,9 +9,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 contract Vaultis is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-    constructor(address initialOwner) Ownable(initialOwner) {
+    constructor(address initialOwner, address _retryTokenAddress) Ownable(initialOwner) {
         entryFeeToken = IERC20(address(0));
         revealDelay = 1 hours; // Default reveal delay
+        retryToken = IERC20(_retryTokenAddress);
     }
     mapping(address => uint256) public balances;
     uint256 public currentRiddleId;
@@ -30,6 +31,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     // Track entry and claim independently to avoid blocking legitimate claims
     mapping(uint256 => mapping(address => bool)) public hasParticipated; // entered
     mapping(uint256 => mapping(address => bool)) public hasClaimed;      // claimed
+    mapping(uint256 => mapping(address => uint256)) public playerRetries; // New: Track retries per player per riddle
     mapping(uint256 => mapping(address => bytes32)) public committedGuesses; // Stores hashed guesses for commit-reveal
     mapping(uint256 => mapping(address => uint256)) public committedAt; // timestamp when commit made
     mapping(uint256 => mapping(address => bytes32)) public revealedGuessHash; // stores the hash of the revealed guess (or bytes32(0) if none)
@@ -116,6 +118,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param riddleId The ID of the riddle the player entered.
      */
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
+    /**
+     * @notice Emitted when a player successfully purchases a retry for a riddle.
+     * @param player The address of the player who purchased the retry.
+     * @param riddleId The ID of the riddle for which the retry was purchased.
+     * @param cost The cost of the retry.
+     * @param newRetryCount The new number of retries available to the player.
+     */
+    event RetryPurchased(address indexed player, uint256 indexed riddleId, uint256 cost, uint256 newRetryCount);
     /**
      * @notice Emitted when a new riddle is successfully initialized.
      * @param riddleId The unique identifier for the new riddle.
@@ -298,18 +308,46 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Allows a player to purchase a retry for a specific riddle.
+     * @dev The player must pay the RETRY_COST in retryToken.
+     * @param _riddleId The ID of the riddle for which the retry is being purchased.
+     */
+    function purchaseRetry(uint256 _riddleId) public nonReentrant {
+        require(_riddleId == currentRiddleId, "Not the active riddle ID");
+        require(address(retryToken) != address(0), "Retry token not set");
+        require(RETRY_COST > 0, "Retry cost must be greater than zero");
+
+        // Ensure player has enough retry tokens
+        retryToken.safeTransferFrom(msg.sender, address(this), RETRY_COST);
+
+        playerRetries[_riddleId][msg.sender]++;
+        emit RetryPurchased(msg.sender, _riddleId, RETRY_COST, playerRetries[_riddleId][msg.sender]);
+    }
+
+    /**
      * @notice Allows a player to submit a hashed guess for a specific riddle.
      * @dev This function is part of a commit-reveal scheme to prevent front-running.
      *      Players submit a hash of their guess first, and later reveal the actual guess.
      * @param _riddleId The ID of the riddle for which the guess is being submitted.
-     * @param _guessHash The keccak256 hash of the player's guess.
+     * @param _guessHash The keccak256 hash of the player\'s guess.
      */
     function submitGuess(uint256 _riddleId, bytes32 _guessHash) public nonReentrant {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(_guessHash != bytes32(0), "Guess hash cannot be zero"); // Validate hash is not empty
         require(hasParticipated[_riddleId][msg.sender], "Must enter the game first");
-        require(committedGuesses[_riddleId][msg.sender] == bytes32(0), "Already submitted a guess for this riddle");
+
+        if (committedGuesses[_riddleId][msg.sender] != bytes32(0)) {
+            // If a guess was already submitted, check for retries
+            require(playerRetries[_riddleId][msg.sender] > 0, "No retries available");
+            playerRetries[_riddleId][msg.sender]--;
+            // Clear previous guess to allow new submission
+            committedGuesses[_riddleId][msg.sender] = bytes32(0);
+            committedAt[_riddleId][msg.sender] = 0;
+            // Also clear revealed state if any, to ensure a fresh attempt
+            revealedGuessHash[_riddleId][msg.sender] = bytes32(0);
+            hasRevealed[_riddleId][msg.sender] = false;
+        }
 
         if (_guessHash == sAnswerHash) {
             if (!isWinner[_riddleId][msg.sender]) {

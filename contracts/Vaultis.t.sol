@@ -40,7 +40,7 @@ contract VaultisTest is Test {
     function setUp() public {
         user1 = address(uint160(uint256(keccak256(abi.encodePacked("user1")))));
         user2 = address(uint160(uint256(keccak256(abi.encodePacked("user2")))));
-        vaultis = new Vaultis(user1);
+        vaultis = new Vaultis(user1, address(mockERC20));
         mockERC20 = new MockERC20("MockToken", "MTK");
         mockERC20FeeOnTransfer = new MockERC20FeeOnTransfer("FeeToken", "FOT", 5); // 5% fee
         vm.deal(address(this), 100 ether); // Give the test contract some Ether to receive withdrawals and fund prizes
@@ -480,7 +480,7 @@ contract VaultisTest is Test {
 
     function testSetRiddleErc20InvalidTokenTotalSupplyFails() public {
         // Deploy a contract that is not an ERC20 and doesn't have totalSupply
-        address notAnErc20 = address(new Vaultis(user1)); // Use Vaultis itself as a non-ERC20 contract
+        address notAnErc20 = address(new Vaultis(user1, address(mockERC20))); // Use Vaultis itself as a non-ERC20 contract
         vm.expectRevert("Invalid ERC-20 token: totalSupply call failed");
         vm.startPrank(user1);
         vaultis.setRiddle(1, keccak256(abi.encodePacked("answer")), Vaultis.PrizeType.ERC20, notAnErc20, 100, address(mockERC20));

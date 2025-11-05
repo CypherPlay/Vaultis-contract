@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "type": "module",
   "devDependencies": {
-    "hardhat": "^3.0.7"
+    "hardhat": "^3.0.11"
   }
 }
