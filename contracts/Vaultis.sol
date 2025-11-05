@@ -315,6 +315,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
         } else {
             emit GuessEvaluated(_riddleId, msg.sender, block.timestamp, false);
         }
+        committedGuesses[_riddleId][msg.sender] = _guessHash;
+        committedAt[_riddleId][msg.sender] = block.timestamp;
         emit GuessSubmitted(msg.sender, _riddleId, _guessHash);
     }
 
