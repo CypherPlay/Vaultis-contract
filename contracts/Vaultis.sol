@@ -46,6 +46,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
      */
     event GuessSubmitted(address indexed player, uint256 indexed riddleId, bytes32 guessHash);
 
+    event GuessSubmitted(uint256 riddleId, address player, uint256 timestamp, bool isWinner);
+
     /**
      * @notice Emitted when a player successfully reveals their guess for a riddle.
      * @param player The address of the player who revealed the guess.
@@ -309,6 +311,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
         if (_guessHash == sAnswerHash) {
             winners[_riddleId] = msg.sender;
             emit WinnerFound(msg.sender, _riddleId);
+            emit GuessSubmitted(_riddleId, msg.sender, block.timestamp, true);
+        } else {
+            emit GuessSubmitted(_riddleId, msg.sender, block.timestamp, false);
         }
     }
 
