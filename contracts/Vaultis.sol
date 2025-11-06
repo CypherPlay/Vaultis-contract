@@ -492,6 +492,17 @@ contract Vaultis is Ownable, ReentrancyGuard {
         );
     }
 
+    /**
+     * @notice Handles prize distribution to the winning addresses for a specific riddle.
+     * @dev This function can only be called by the contract owner.
+     * @param _riddleId The ID of the riddle for which prizes are being paid out.
+     * @param _winners An array of addresses of the winners for the specified riddle.
+     */
+    function payout(uint256 _riddleId, address[] memory _winners) public onlyOwner {
+        // TODO: Implement prize distribution logic here.
+        // This might involve iterating through _winners and calling _distributePrize for each.
+        // Consider how prizeAmount should be divided among multiple winners.
+    }
 
     /**
      * @notice Returns the address of the ERC20 prize token currently set for the active riddle.
