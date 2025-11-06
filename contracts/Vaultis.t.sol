@@ -1371,19 +1371,80 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
-    function testPayoutNonOwnerFails() public {
+    function testPayoutRemainderDistributionWithFirstWinnerClaimed() public {
         bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
-        uint256 prizeAmount = 1 ether;
+        uint256 prizeAmount = 205; // 205 / 2 = 102 with 1 remainder
+        address user3 = address(uint160(uint256(keccak256(abi.encodePacked("user3")))));
+        vm.deal(user3, 100 ether);
 
         vm.startPrank(user1);
-        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
         vm.stopPrank();
 
-        address[] memory winners = new address[](1);
-        winners[0] = user2;
-
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user2));
+        // User2 (first winner) enters, submits, reveals, and claims
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
         vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vaultis.revealGuess(1, "correct_answer");
+        vaultis.solveRiddleAndClaim("correct_answer");
+        vm.stopPrank();
+
+        assertEq(mockERC20.balanceOf(user2), prizeAmount); // User2 claimed full prize
+        assertEq(vaultis.tokenPrizePool(), 0); // Pool should be empty after first claim
+
+        // Now, payout with user2 and user3. User2 has already claimed.
+        address[] memory winners = new address[](2);
+        winners[0] = user2; // Already claimed
+        winners[1] = user3;
+
+        uint256 perWinnerAmount = prizeAmount / winners.length; // 205 / 2 = 102
+        uint256 remainder = prizeAmount % winners.length; // 205 % 2 = 1
+
+        // Fund the prize pool again for the payout, as it was emptied by user2's claim
+        mockERC20.mint(user1, prizeAmount);
+        vm.startPrank(user1);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+        assertEq(mockERC20.balanceOf(user3), 0);
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+
+        // User2's balance should remain the same as they already claimed
+        assertEq(mockERC20.balanceOf(user2), prizeAmount);
+        // User3 should get perWinnerAmount + remainder (since user2 is claimed, user3 is the first *unclaimed* winner)
+        assertEq(mockERC20.balanceOf(user3), perWinnerAmount + remainder);
+        assertEq(vaultis.tokenPrizePool(), prizeAmount - (perWinnerAmount + remainder)); // Remaining in pool
+    }
+
+    function testPayoutDuplicateWinnersFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        address[] memory winners = new address[](2);
+        winners[0] = user2;
+        winners[1] = user2; // Duplicate address
+
+        vm.expectRevert("Duplicate winner addresses not allowed");
+        vm.startPrank(user1);
         vaultis.payout(1, winners);
         vm.stopPrank();
     }

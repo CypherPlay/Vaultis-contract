@@ -526,19 +526,19 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_riddleId <= currentRiddleId, "Riddle ID must be current or past");
         require(_winners.length > 0, "Winners array cannot be empty");
 
+        // (1) Validate for duplicate addresses
+        for (uint256 i = 0; i < _winners.length; i++) {
+            for (uint256 j = i + 1; j < _winners.length; j++) {
+                require(_winners[i] != _winners[j], "Duplicate winner addresses not allowed");
+            }
+        }
+
         RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
         require(riddleConfig.prizeAmount > 0, "Riddle prize amount not set");
 
         // Compute per-winner amount and handle remainder
         uint256 perWinnerAmount = riddleConfig.prizeAmount / _winners.length;
         uint256 remainder = riddleConfig.prizeAmount % _winners.length;
-
-        // Policy: Add remainder to the first winner's share
-        // This ensures all prize tokens are distributed and none are left in the contract.
-        if (remainder > 0) {
-            require(_winners.length > 0, "Cannot distribute remainder with no winners"); // Should be caught by earlier check
-            // The first winner gets the remainder
-        }
 
         require(perWinnerAmount > 0 || remainder > 0, "Per-winner amount must be greater than zero");
 
@@ -551,7 +551,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         require(unclaimedWinnersCount > 0, "No new winners to pay out");
 
-        uint256 totalAmountToDistribute = (perWinnerAmount * unclaimedWinnersCount) + remainder; // Account for remainder in total
+        // (3) Re-evaluate totalAmountToDistribute
+        // The remainder will be assigned to one unclaimed winner.
+        uint256 totalAmountToDistribute = (perWinnerAmount * unclaimedWinnersCount);
+        if (remainder > 0) {
+            totalAmountToDistribute += remainder;
+        }
+
 
         // Ensure respective pool has sufficient total balance before starting distribution
         if (riddleConfig.prizeType == PrizeType.ETH) {
@@ -561,13 +567,16 @@ contract Vaultis is Ownable, ReentrancyGuard {
         }
 
         uint256 distributedCount = 0;
+        bool remainderDistributed = false; // (2) Remainder distribution flag
         for (uint256 i = 0; i < _winners.length; i++) {
             address winner = _winners[i];
             if (!hasClaimed[_riddleId][winner]) {
                 hasClaimed[_riddleId][winner] = true; // Mark as claimed before external call
                 uint256 currentWinnerAmount = perWinnerAmount;
-                if (i == 0) { // First winner gets the remainder
+                // (2) Add remainder to the first *unclaimed* winner
+                if (remainder > 0 && !remainderDistributed) {
                     currentWinnerAmount += remainder;
+                    remainderDistributed = true;
                 }
                 _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
                 distributedCount++;
