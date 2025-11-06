@@ -122,6 +122,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
      */
     event EntryFeeCollected(address indexed player, address indexed token, uint256 amount, uint256 indexed riddleId);
     /**
+     * @notice Emitted after a batch payout to multiple winners is successfully executed.
+     * @param riddleId The ID of the riddle for which the payout occurred.
+     * @param winnerCount The number of winners who received a payout in this batch.
+     * @param totalAmount The total amount of prize distributed in this batch.
+     * @param prizeType The type of prize (ETH or ERC20).
+     */
+    event PayoutExecuted(uint256 indexed riddleId, uint256 winnerCount, uint256 totalAmount, PrizeType prizeType);
+    /**
      * @notice Emitted when a player successfully enters a riddle.
      * @param player The address of the player who entered.
      * @param riddleId The ID of the riddle the player entered.
@@ -498,10 +506,45 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _riddleId The ID of the riddle for which prizes are being paid out.
      * @param _winners An array of addresses of the winners for the specified riddle.
      */
-    function payout(uint256 _riddleId, address[] memory _winners) public onlyOwner {
-        // TODO: Implement prize distribution logic here.
-        // This might involve iterating through _winners and calling _distributePrize for each.
-        // Consider how prizeAmount should be divided among multiple winners.
+    function payout(uint256 _riddleId, address[] memory _winners) public onlyOwner nonReentrant {
+        // Input validation
+        require(_riddleId > 0, "Riddle ID must be greater than zero");
+        require(_riddleId <= currentRiddleId, "Riddle ID must be current or past");
+        require(_winners.length > 0, "Winners array cannot be empty");
+
+        // Compute per-winner amount
+        uint256 perWinnerAmount = prizeAmount / _winners.length;
+        require(perWinnerAmount > 0, "Per-winner amount must be greater than zero");
+
+        uint256 unclaimedWinnersCount = 0;
+        for (uint256 i = 0; i < _winners.length; i++) {
+            if (!hasClaimed[_riddleId][_winners[i]]) {
+                unclaimedWinnersCount++;
+            }
+        }
+
+        require(unclaimedWinnersCount > 0, "No new winners to pay out");
+
+        uint256 totalAmountToDistribute = perWinnerAmount * unclaimedWinnersCount;
+
+        // Ensure respective pool has sufficient total balance before starting distribution
+        if (prizeType == PrizeType.ETH) {
+            require(ethPrizePool >= totalAmountToDistribute, "Insufficient ETH prize pool balance for payout");
+        } else if (prizeType == PrizeType.ERC20) {
+            require(tokenPrizePool >= totalAmountToDistribute, "Insufficient ERC20 prize pool balance for payout");
+        }
+
+        uint256 distributedCount = 0;
+        for (uint256 i = 0; i < _winners.length; i++) {
+            address winner = _winners[i];
+            if (!hasClaimed[_riddleId][winner]) {
+                hasClaimed[_riddleId][winner] = true; // Mark as claimed before external call
+                _distributePrize(winner, perWinnerAmount);
+                distributedCount++;
+            }
+        }
+        // distributedCount should be equal to unclaimedWinnersCount
+        emit PayoutExecuted(_riddleId, distributedCount, totalAmountToDistribute, prizeType);
     }
 
     /**

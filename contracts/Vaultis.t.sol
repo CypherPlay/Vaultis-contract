@@ -1135,4 +1135,254 @@ contract VaultisTest is Test {
 
         assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry for riddle 2 after reset and purchase");
     }
+
+    function testPayoutEthPrizeSingleWinner() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+        uint256 initialUser2Balance = user2.balance;
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), 0);
+        assertEq(user2.balance, initialUser2Balance + prizeAmount);
+        assertTrue(vaultis.hasClaimed(1, user2));
+    }
+
+    function testPayoutEthPrizeMultipleWinners() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 2 ether;
+        address user3 = address(uint160(uint256(keccak256(abi.encodePacked("user3")))));
+        vm.deal(user3, 100 ether);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+        uint256 initialUser2Balance = user2.balance;
+        uint256 initialUser3Balance = user3.balance;
+
+        address[] memory winners = new address[](2);
+        winners[0] = user2;
+        winners[1] = user3;
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), 0);
+        assertEq(user2.balance, initialUser2Balance + (prizeAmount / 2));
+        assertEq(user3.balance, initialUser3Balance + (prizeAmount / 2));
+        assertTrue(vaultis.hasClaimed(1, user2));
+        assertTrue(vaultis.hasClaimed(1, user3));
+    }
+
+    function testPayoutErc20PrizeSingleWinner() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+        assertEq(mockERC20.balanceOf(user2), 0);
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), 0);
+        assertEq(mockERC20.balanceOf(user2), prizeAmount);
+        assertTrue(vaultis.hasClaimed(1, user2));
+    }
+
+    function testPayoutErc20PrizeMultipleWinners() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 200;
+        address user3 = address(uint160(uint256(keccak256(abi.encodePacked("user3")))));
+        vm.deal(user3, 100 ether);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+        assertEq(mockERC20.balanceOf(user2), 0);
+        assertEq(mockERC20.balanceOf(user3), 0);
+
+        address[] memory winners = new address[](2);
+        winners[0] = user2;
+        winners[1] = user3;
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), 0);
+        assertEq(mockERC20.balanceOf(user2), prizeAmount / 2);
+        assertEq(mockERC20.balanceOf(user3), prizeAmount / 2);
+        assertTrue(vaultis.hasClaimed(1, user2));
+        assertTrue(vaultis.hasClaimed(1, user3));
+    }
+
+    function testPayoutAlreadyClaimedWinner() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+        uint256 initialUser2Balance = user2.balance;
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winners); // First payout
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), 0);
+        assertEq(user2.balance, initialUser2Balance + prizeAmount);
+        assertTrue(vaultis.hasClaimed(1, user2));
+
+        // Try to payout again to the same winner
+        vm.startPrank(user1);
+        vm.expectRevert("No new winners to pay out"); // Because user2 is already claimed
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+    }
+
+    function testPayoutInsufficientEthPrizePoolFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        // Do not fund the prize pool sufficiently
+        (bool success, ) = address(vaultis).call{value: prizeAmount / 2}(""); // Fund only half
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount / 2);
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.expectRevert("Insufficient ETH prize pool balance for payout");
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+    }
+
+    function testPayoutInsufficientErc20PrizePoolFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount / 2);
+        mockERC20.approve(address(vaultis), prizeAmount / 2);
+        vaultis.fundTokenPrizePool(prizeAmount / 2);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount / 2);
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.expectRevert("Insufficient ERC20 prize pool balance for payout");
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+    }
+
+    function testPayoutZeroRiddleIdFails() public {
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.expectRevert("Riddle ID must be greater than zero");
+        vm.startPrank(user1);
+        vaultis.payout(0, winners);
+        vm.stopPrank();
+    }
+
+    function testPayoutFutureRiddleIdFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.expectRevert("Riddle ID must be current or past");
+        vm.startPrank(user1);
+        vaultis.payout(2, winners);
+        vm.stopPrank();
+    }
+
+    function testPayoutEmptyWinnersArrayFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        address[] memory winners = new address[](0);
+
+        vm.expectRevert("Winners array cannot be empty");
+        vm.startPrank(user1);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+    }
+
+    function testPayoutNonOwnerFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        address[] memory winners = new address[](1);
+        winners[0] = user2;
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user2));
+        vm.startPrank(user2);
+        vaultis.payout(1, winners);
+        vm.stopPrank();
+    }
 }
+
