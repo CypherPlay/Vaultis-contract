@@ -826,6 +826,69 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
+    function testPurchaseRetrySuccess() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters the game
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User2 purchases a retry
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry");
+        assertEq(mockERC20.balanceOf(address(vaultis)), vaultis.ENTRY_FEE() + vaultis.RETRY_COST(), "Vaultis should hold entry fee + retry cost");
+        assertEq(mockERC20.balanceOf(user2), 0, "User2 should have 0 retry tokens left");
+    }
+
+    function testPurchaseRetryMaxRetriesFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters the game
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User2 purchases MAX_RETRIES
+        for (uint256 i = 0; i < vaultis.MAX_RETRIES(); i++) {
+            mockERC20.mint(user2, vaultis.RETRY_COST());
+            vm.startPrank(user2);
+            mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+            vaultis.purchaseRetry(1);
+            vm.stopPrank();
+        }
+
+        assertEq(vaultis.retries(user2), vaultis.MAX_RETRIES(), "User2 should have MAX_RETRIES");
+
+        // User2 tries to purchase one more retry, which should fail
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vm.expectRevert("Max retries reached");
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+    }
+
+
 
     function testSetRiddleRevertsWithNonEmptyPrizePools() public {
         bytes32 answerHash = keccak256(abi.encodePacked("answer"));
