@@ -327,7 +327,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(playerRetries[_riddleId][msg.sender] < MAX_RETRIES, "Max retries reached");
 
         // Ensure player has enough retry tokens
+        uint256 beforeBal = retryToken.balanceOf(address(this));
         retryToken.safeTransferFrom(msg.sender, address(this), RETRY_COST);
+        uint256 received = retryToken.balanceOf(address(this)) - beforeBal;
+        require(received == RETRY_COST, "Retry cost mismatch (FOT not supported)");
 
         playerRetries[_riddleId][msg.sender]++;
         emit RetryPurchased(msg.sender, _riddleId, RETRY_COST, playerRetries[_riddleId][msg.sender]);
