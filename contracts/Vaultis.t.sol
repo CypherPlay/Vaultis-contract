@@ -1009,4 +1009,130 @@ contract VaultisTest is Test {
         vaultis.ownerWithdrawTokens(prizeAmount);
         vm.stopPrank();
     }
+
+    function testRetriesResetOnNewRiddleEntry() public {
+        bytes32 answerHash1 = keccak256(abi.encodePacked("answer1"));
+        bytes32 answerHash2 = keccak256(abi.encodePacked("answer2"));
+        uint256 prizeAmount = 1 ether;
+
+        // Riddle 1 setup
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash1, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters riddle 1 and purchases a retry
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry for riddle 1");
+
+        // Riddle 2 setup
+        vm.startPrank(user1);
+        vaultis.setRiddle(2, answerHash2, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters riddle 2
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(2);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 0, "User2 retries should be reset to 0 for riddle 2");
+    }
+
+    function testCannotUseRetriesFromOtherRiddleInEnterGame() public {
+        bytes32 answerHash1 = keccak256(abi.encodePacked("answer1"));
+        bytes32 answerHash2 = keccak256(abi.encodePacked("answer2"));
+        uint256 prizeAmount = 1 ether;
+
+        // Riddle 1 setup
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash1, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters riddle 1 and purchases a retry
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry for riddle 1");
+
+        // Riddle 2 setup
+        vm.startPrank(user1);
+        vaultis.setRiddle(2, answerHash2, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 tries to enter riddle 2 without resetting retries (should reset automatically)
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(2); // This should trigger the retry reset
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 0, "Retries should be 0 after entering a new riddle");
+
+        // Now, if user2 tries to submit a guess for riddle 2 and expects to use a retry, it should fail
+        bytes32 guessHash = keccak256(abi.encodePacked("my_guess"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(2, guessHash); // First guess for riddle 2, should succeed
+        vm.expectRevert("No retries available");
+        vaultis.submitGuess(2, guessHash); // Second guess for riddle 2, should fail as retries are 0
+        vm.stopPrank();
+    }
+
+    function testCannotUseRetriesFromOtherRiddleInPurchaseRetry() public {
+        bytes32 answerHash1 = keccak256(abi.encodePacked("answer1"));
+        bytes32 answerHash2 = keccak256(abi.encodePacked("answer2"));
+        uint256 prizeAmount = 1 ether;
+
+        // Riddle 1 setup
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash1, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters riddle 1 and purchases a retry
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry for riddle 1");
+
+        // Riddle 2 setup
+        vm.startPrank(user1);
+        vaultis.setRiddle(2, answerHash2, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters riddle 2
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(2);
+        vm.stopPrank();
+
+        // User2 tries to purchase a retry for riddle 2, which should reset retries first
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(2); // This should trigger the retry reset and then purchase for riddle 2
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry for riddle 2 after reset and purchase");
+    }
 }

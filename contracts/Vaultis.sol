@@ -40,6 +40,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public hasParticipated; // entered
     mapping(uint256 => mapping(address => bool)) public hasClaimed;      // claimed
     mapping(address => uint256) public retries;
+    mapping(address => uint256) private lastRiddleIdForUser;
     mapping(uint256 => mapping(address => bytes32)) public committedGuesses; // Stores hashed guesses for commit-reveal
     mapping(uint256 => mapping(address => uint256)) public committedAt; // timestamp when commit made
     mapping(uint256 => mapping(address => bytes32)) public revealedGuessHash; // stores the hash of the revealed guess (or bytes32(0) if none)
@@ -128,6 +129,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
     /**
      * @notice Emitted when a player successfully purchases a retry for a riddle.
+     * @dev While `_riddleId` indicates the active riddle at the time of purchase, retries are tracked globally per user and are reset when a user interacts with a new riddle.
      * @param player The address of the player who purchased the retry.
      * @param riddleId The ID of the riddle for which the retry was purchased.
      * @param cost The cost of the retry.
@@ -299,6 +301,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(!hasParticipated[_riddleId][msg.sender], "Already participated in this riddle");
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(currentRiddleId > 0, "No active riddle");
+
+        if (lastRiddleIdForUser[msg.sender] != _riddleId) {
+            retries[msg.sender] = 0;
+            lastRiddleIdForUser[msg.sender] = _riddleId;
+        }
         
         if (ENTRY_FEE > 0) {
             IERC20 token = entryFeeToken;
@@ -325,6 +332,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(hasParticipated[_riddleId][msg.sender], "Must participate in the riddle first");
         require(address(retryToken) != address(0), "Retry token not set");
         require(retries[msg.sender] < MAX_RETRIES, "Max retries reached");
+
+        if (lastRiddleIdForUser[msg.sender] != _riddleId) {
+            retries[msg.sender] = 0;
+            lastRiddleIdForUser[msg.sender] = _riddleId;
+        }
 
         // Ensure player has enough retry tokens
         uint256 beforeBal = retryToken.balanceOf(address(this));
