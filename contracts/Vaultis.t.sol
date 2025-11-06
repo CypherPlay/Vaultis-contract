@@ -387,9 +387,10 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.currentRiddleId(), 1);
-        assertEq(uint256(vaultis.prizeType()), uint256(Vaultis.PrizeType.ETH));
-        assertEq(vaultis.getPrizeToken(), address(0));
-        assertEq(vaultis.prizeAmount(), prizeAmount);
+        (uint256 r_prizeAmount, Vaultis.PrizeType r_prizeType, IERC20 r_prizeToken) = vaultis.riddleConfigs(1);
+        assertEq(uint256(r_prizeType), uint256(Vaultis.PrizeType.ETH));
+        assertEq(address(r_prizeToken), address(0));
+        assertEq(r_prizeAmount, prizeAmount);
         assertEq(vaultis.ethPrizePool(), 0);
         assertEq(vaultis.tokenPrizePool(), 0);
     }
@@ -403,9 +404,10 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.currentRiddleId(), 2);
-        assertEq(uint256(vaultis.prizeType()), uint256(Vaultis.PrizeType.ERC20));
-        assertEq(vaultis.getPrizeToken(), address(mockERC20));
-        assertEq(vaultis.prizeAmount(), prizeAmount);
+        (uint256 r_prizeAmount, Vaultis.PrizeType r_prizeType, IERC20 r_prizeToken) = vaultis.riddleConfigs(2);
+        assertEq(uint256(r_prizeType), uint256(Vaultis.PrizeType.ERC20));
+        assertEq(address(r_prizeToken), address(mockERC20));
+        assertEq(r_prizeAmount, prizeAmount);
         assertEq(vaultis.ethPrizePool(), 0);
         assertEq(vaultis.tokenPrizePool(), 0);
     }
@@ -450,8 +452,9 @@ contract VaultisTest is Test {
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), 500, address(mockERC20));
         // assert riddle state or emitted event
         assertEq(vaultis.currentRiddleId(), 1);
-        assertEq(vaultis.prizeAmount(), 500);
-        assertEq(vaultis.getPrizeToken(), address(mockERC20));
+        (uint256 r_prizeAmount, Vaultis.PrizeType r_prizeType, IERC20 r_prizeToken) = vaultis.riddleConfigs(1);
+        assertEq(r_prizeAmount, 500);
+        assertEq(address(r_prizeToken), address(mockERC20));
         vm.stopPrank();
     }
 
