@@ -536,7 +536,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
         RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
         require(riddleConfig.prizeAmount > 0, "Riddle prize amount not set");
 
-        // Compute per-winner amount and handle remainder
+        // Calculate the prize amount per winner by dividing the riddle's prizePool by the number of winners.
+        // The remainder is distributed to one winner to avoid rounding errors.
         uint256 perWinnerAmount = riddleConfig.prizeAmount / _winners.length;
         uint256 remainder = riddleConfig.prizeAmount % _winners.length;
 
