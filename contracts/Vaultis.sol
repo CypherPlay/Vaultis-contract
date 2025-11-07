@@ -56,6 +56,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
     bytes32 internal sAnswerHash;
     mapping(uint256 => address[]) public winners;
     mapping(uint256 => mapping(address => bool)) public isWinner;
+    mapping(uint256 => uint256) public totalPrizeDistributed;
+    mapping(uint256 => mapping(address => bool)) public hasReceivedRemainder;
 
     event WinnerFound(address indexed winner, uint256 indexed riddleId);
 
