@@ -540,8 +540,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         // Calculate the prize amount per winner by dividing riddleConfig.prizeAmount by the number of winners.
         // The remainder is distributed to one winner to avoid rounding errors.
-        uint256 perWinnerAmount = riddleConfig.prizeAmount / _winners.length;
-        uint256 remainder = riddleConfig.prizeAmount % _winners.length;
+        uint256 totalWinners = winners[_riddleId].length;
+        require(totalWinners > 0, "No winners registered for this riddle");
+        uint256 perWinnerAmount = riddleConfig.prizeAmount / totalWinners;
+        uint256 remainder = riddleConfig.prizeAmount % totalWinners;
 
         require(perWinnerAmount > 0 || remainder > 0, "Per-winner amount must be greater than zero");
 
@@ -556,8 +558,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         // (3) Re-evaluate totalAmountToDistribute
         // The remainder will be assigned to one unclaimed winner.
-        uint256 totalAmountToDistribute = (perWinnerAmount * unclaimedWinnersCount);
-        if (remainder > 0) {
+        uint256 totalAmountToDistribute = perWinnerAmount * unclaimedWinnersCount;
+        bool remainderAvailable = remainder > 0 && totalPrizeDistributed[_riddleId] + totalAmountToDistribute < riddleConfig.prizeAmount;
+        if (remainderAvailable) {
             totalAmountToDistribute += remainder;
         }
 
@@ -577,10 +580,12 @@ contract Vaultis is Ownable, ReentrancyGuard {
                 hasClaimed[_riddleId][winner] = true; // Mark as claimed before external call
                 uint256 currentWinnerAmount = perWinnerAmount;
                 // (2) Add remainder to the first *unclaimed* winner
-                if (remainder > 0 && !remainderDistributed) {
+                if (remainderAvailable && !remainderDistributed && !hasReceivedRemainder[_riddleId][winner]) {
                     currentWinnerAmount += remainder;
+                    hasReceivedRemainder[_riddleId][winner] = true;
                     remainderDistributed = true;
                 }
+                totalPrizeDistributed[_riddleId] += currentWinnerAmount;
                 _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
                 distributedCount++;
             }
