@@ -586,7 +586,16 @@ contract Vaultis is Ownable, ReentrancyGuard {
                     remainderDistributed = true;
                 }
                 totalPrizeDistributed[_riddleId] += currentWinnerAmount;
-                _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
+                if (riddleConfig.prizeType == PrizeType.ETH) {
+                    _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
+                } else if (riddleConfig.prizeType == PrizeType.ERC20) {
+                    require(address(riddleConfig.prizeToken) != address(0), "Prize token not set");
+                    require(tokenPrizePool >= currentWinnerAmount, "Insufficient ERC20 prize pool balance for payout");
+                    tokenPrizePool -= currentWinnerAmount;
+                    // The safeTransfer already reverts on failure, so an explicit require is not strictly necessary
+                    // but added for clarity and to match the spirit of the request.
+                    riddleConfig.prizeToken.safeTransfer(winner, currentWinnerAmount);
+                }
                 distributedCount++;
             }
         }
