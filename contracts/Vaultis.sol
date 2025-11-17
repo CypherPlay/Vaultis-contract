@@ -304,7 +304,19 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
-        _distributePrize(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken);
+        if (currentRiddleConfig.prizeType == PrizeType.ETH) {
+            require(ethPrizePool >= currentRiddleConfig.prizeAmount, "Insufficient ETH prize pool balance");
+            require(address(this).balance >= currentRiddleConfig.prizeAmount, "Insufficient contract ETH balance");
+            ethPrizePool -= currentRiddleConfig.prizeAmount;
+            (bool success, ) = msg.sender.call{value: currentRiddleConfig.prizeAmount}("");
+            require(success, "ETH transfer failed");
+        } else if (currentRiddleConfig.prizeType == PrizeType.ERC20) {
+            require(address(currentRiddleConfig.prizeToken) != address(0), "Prize token not set");
+            require(tokenPrizePool >= currentRiddleConfig.prizeAmount, "Insufficient ERC20 prize pool balance");
+            tokenPrizePool -= currentRiddleConfig.prizeAmount;
+            currentRiddleConfig.prizeToken.safeTransfer(msg.sender, currentRiddleConfig.prizeAmount);
+        }
+        emit PrizeDistributed(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType);
 
         // Clear revealed state after successful claim to prevent replay
         revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
@@ -586,7 +598,18 @@ contract Vaultis is Ownable, ReentrancyGuard {
                     remainderDistributed = true;
                 }
                 totalPrizeDistributed[_riddleId] += currentWinnerAmount;
-                _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
+                if (riddleConfig.prizeType == PrizeType.ETH) {
+                    require(ethPrizePool >= currentWinnerAmount, "Insufficient ETH prize pool balance for winner");
+                    ethPrizePool -= currentWinnerAmount;
+                    (bool success, ) = winner.call{value: currentWinnerAmount}("");
+                    require(success, "ETH transfer failed for winner");
+                } else if (riddleConfig.prizeType == PrizeType.ERC20) {
+                    require(address(riddleConfig.prizeToken) != address(0), "Prize token not set for ERC20 prize");
+                    require(tokenPrizePool >= currentWinnerAmount, "Insufficient ERC20 prize pool balance for winner");
+                    tokenPrizePool -= currentWinnerAmount;
+                    riddleConfig.prizeToken.safeTransfer(winner, currentWinnerAmount);
+                }
+                emit PrizeDistributed(winner, currentWinnerAmount, riddleConfig.prizeType);
                 distributedCount++;
             }
         }
