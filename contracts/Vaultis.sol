@@ -597,12 +597,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         // distributedCount should be equal to unclaimedWinnersCount
         emit PayoutExecuted(_riddleId, distributedCount, totalAmountToDistribute, riddleConfig.prizeType);
 
-        // Reset the prize pool after successful payout
-        if (riddleConfig.prizeType == PrizeType.ETH) {
-            ethPrizePool = 0;
-        } else if (riddleConfig.prizeType == PrizeType.ERC20) {
-            tokenPrizePool = 0;
-        }
+
     }
 
     /**
