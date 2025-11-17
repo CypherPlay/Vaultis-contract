@@ -304,19 +304,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
-        if (currentRiddleConfig.prizeType == PrizeType.ETH) {
-            require(ethPrizePool >= currentRiddleConfig.prizeAmount, "Insufficient ETH prize pool balance");
-            require(address(this).balance >= currentRiddleConfig.prizeAmount, "Insufficient contract ETH balance");
-            ethPrizePool -= currentRiddleConfig.prizeAmount;
-            (bool success, ) = msg.sender.call{value: currentRiddleConfig.prizeAmount}("");
-            require(success, "ETH transfer failed");
-        } else if (currentRiddleConfig.prizeType == PrizeType.ERC20) {
-            require(address(currentRiddleConfig.prizeToken) != address(0), "Prize token not set");
-            require(tokenPrizePool >= currentRiddleConfig.prizeAmount, "Insufficient ERC20 prize pool balance");
-            tokenPrizePool -= currentRiddleConfig.prizeAmount;
-            currentRiddleConfig.prizeToken.safeTransfer(msg.sender, currentRiddleConfig.prizeAmount);
-        }
-        emit PrizeDistributed(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType);
+        _distributePrize(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken);
 
         // Clear revealed state after successful claim to prevent replay
         revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
@@ -541,10 +529,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_winners.length > 0, "Winners array cannot be empty");
 
         // (1) Validate for duplicate addresses
+        mapping(address => bool) memory seen;
         for (uint256 i = 0; i < _winners.length; i++) {
-            for (uint256 j = i + 1; j < _winners.length; j++) {
-                require(_winners[i] != _winners[j], "Duplicate winner addresses not allowed");
-            }
+            require(!seen[_winners[i]], "Duplicate winner addresses not allowed");
+            seen[_winners[i]] = true;
         }
 
         RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
@@ -584,6 +572,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
             require(tokenPrizePool >= totalAmountToDistribute, "Insufficient ERC20 prize pool balance for payout");
         }
 
+        // Design Decision: All-or-nothing batch payout.
+        // If any individual prize transfer fails, the entire transaction will revert.
+        // This ensures atomicity and prevents partial payouts, maintaining consistency
+        // of the prize pool and winner states.
         uint256 distributedCount = 0;
         bool remainderDistributed = false; // (2) Remainder distribution flag
         for (uint256 i = 0; i < _winners.length; i++) {
@@ -598,18 +590,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
                     remainderDistributed = true;
                 }
                 totalPrizeDistributed[_riddleId] += currentWinnerAmount;
-                if (riddleConfig.prizeType == PrizeType.ETH) {
-                    require(ethPrizePool >= currentWinnerAmount, "Insufficient ETH prize pool balance for winner");
-                    ethPrizePool -= currentWinnerAmount;
-                    (bool success, ) = winner.call{value: currentWinnerAmount}("");
-                    require(success, "ETH transfer failed for winner");
-                } else if (riddleConfig.prizeType == PrizeType.ERC20) {
-                    require(address(riddleConfig.prizeToken) != address(0), "Prize token not set for ERC20 prize");
-                    require(tokenPrizePool >= currentWinnerAmount, "Insufficient ERC20 prize pool balance for winner");
-                    tokenPrizePool -= currentWinnerAmount;
-                    riddleConfig.prizeToken.safeTransfer(winner, currentWinnerAmount);
-                }
-                emit PrizeDistributed(winner, currentWinnerAmount, riddleConfig.prizeType);
+                _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
                 distributedCount++;
             }
         }
