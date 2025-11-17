@@ -529,10 +529,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_winners.length > 0, "Winners array cannot be empty");
 
         // (1) Validate for duplicate addresses
-        mapping(address => bool) memory seen;
         for (uint256 i = 0; i < _winners.length; i++) {
-            require(!seen[_winners[i]], "Duplicate winner addresses not allowed");
-            seen[_winners[i]] = true;
+            for (uint256 j = i + 1; j < _winners.length; j++) {
+                require(_winners[i] != _winners[j], "Duplicate winner addresses not allowed");
+            }
         }
 
         RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
