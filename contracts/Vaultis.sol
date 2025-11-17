@@ -572,6 +572,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
             require(tokenPrizePool >= totalAmountToDistribute, "Insufficient ERC20 prize pool balance for payout");
         }
 
+        // Design Decision: All-or-nothing batch payout.
+        // If any individual prize transfer fails, the entire transaction will revert.
+        // This ensures atomicity and prevents partial payouts, maintaining consistency
+        // of the prize pool and winner states.
         uint256 distributedCount = 0;
         bool remainderDistributed = false; // (2) Remainder distribution flag
         for (uint256 i = 0; i < _winners.length; i++) {
