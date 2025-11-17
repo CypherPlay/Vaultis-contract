@@ -596,6 +596,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
         }
         // distributedCount should be equal to unclaimedWinnersCount
         emit PayoutExecuted(_riddleId, distributedCount, totalAmountToDistribute, riddleConfig.prizeType);
+
+
     }
 
     /**
