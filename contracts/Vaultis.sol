@@ -140,7 +140,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param totalAmount The total amount of prize distributed in this batch.
      * @param prizeType The type of prize (ETH or ERC20).
      */
-    event PayoutExecuted(uint256 indexed riddleId, uint256 winnerCount, uint256 totalAmount, PrizeType prizeType);
+    event PayoutExecuted(uint256 indexed riddleId, address[] winners, uint256 totalAmount);
     /**
      * @notice Emitted when a player successfully enters a riddle.
      * @param player The address of the player who entered.
@@ -608,7 +608,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             }
         }
 
-        emit PayoutExecuted(_riddleId, distributedInThisBatch, totalAmountToDistributeInBatch, riddleConfig.prizeType);
+        emit PayoutExecuted(_riddleId, _winnersBatch, totalAmountToDistributeInBatch);
 
         // Mark riddle as fully paid out if all winners have been processed
         if (paidWinnersCount[_riddleId] == totalWinnersCount[_riddleId]) {
