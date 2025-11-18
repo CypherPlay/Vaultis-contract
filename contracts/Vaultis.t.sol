@@ -172,7 +172,7 @@ contract VaultisTest is Test {
         bytes32 guessHash = keccak256(abi.encodePacked("my_guess"));
         vm.startPrank(user1);
         vaultis.submitGuess(1, guessHash);
-        vm.expectRevert("No retries available");
+        vm.expectRevert("Vaultis: No retries available to submit a new guess.");
         vaultis.submitGuess(1, guessHash);
         vm.stopPrank();
     }
@@ -1099,7 +1099,7 @@ contract VaultisTest is Test {
         bytes32 guessHash = keccak256(abi.encodePacked("my_guess"));
         vm.startPrank(user2);
         vaultis.submitGuess(2, guessHash); // First guess for riddle 2, should succeed
-        vm.expectRevert("No retries available");
+        vm.expectRevert("Vaultis: No retries available to submit a new guess.");
         vaultis.submitGuess(2, guessHash); // Second guess for riddle 2, should fail as retries are 0
         vm.stopPrank();
     }
@@ -1402,7 +1402,7 @@ contract VaultisTest is Test {
         address[] memory winners = new address[](1);
         winners[0] = user2;
 
-        vm.expectRevert("Insufficient ETH prize pool balance for payout");
+        vm.expectRevert("Insufficient ETH prize pool balance for payout batch");
         vm.startPrank(user1);
         vaultis.payout(1, winners);
         vm.stopPrank();
@@ -1435,7 +1435,7 @@ contract VaultisTest is Test {
         address[] memory winners = new address[](1);
         winners[0] = user2;
 
-        vm.expectRevert("Insufficient ERC20 prize pool balance for payout");
+        vm.expectRevert("Insufficient ERC20 prize pool balance for payout batch");
         vm.startPrank(user1);
         vaultis.payout(1, winners);
         vm.stopPrank();
