@@ -538,8 +538,17 @@ contract Vaultis is Ownable, ReentrancyGuard {
         // Input validation
         require(_riddleId > 0, "Riddle ID must be greater than zero");
         require(_riddleId <= currentRiddleId, "Riddle ID must be current or past");
-        require(_winnersBatch.length > 0, "Winners batch array cannot be empty");
-        require(!isPaidOut[_riddleId], "Payout already fully executed for this riddle");
+        require(_winnersBatch.length > 0, "Winners array cannot be empty");
+        require(!isPaidOut[_riddleId], "Payout already executed for this riddle");
+
+        RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
+
+        // Implement duplicate winner checking for the _winnersBatch array
+        for (uint256 i = 0; i < _winnersBatch.length; i++) {
+            for (uint256 j = i + 1; j < _winnersBatch.length; j++) {
+                require(_winnersBatch[i] != _winnersBatch[j], "Duplicate winner address in batch not allowed");
+            }
+        }
 
         // Calculate the prize amount per winner by dividing riddleConfig.prizeAmount by the total number of winners.
         // The remainder is distributed to the first 'remainder' number of *unpaid* winners.
