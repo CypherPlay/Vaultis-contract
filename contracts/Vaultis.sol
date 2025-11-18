@@ -58,6 +58,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public isWinner;
     mapping(uint256 => uint256) public totalPrizeDistributed;
     mapping(uint256 => mapping(address => bool)) public hasReceivedRemainder;
+    mapping(uint256 => bool) public isPaidOut;
+    mapping(uint256 => uint256) public totalWinnersCount; // New: Total number of winners for a riddle
+    mapping(uint256 => uint256) public paidWinnersCount;  // New: Number of winners paid for a riddle
 
     event WinnerFound(address indexed winner, uint256 indexed riddleId);
 
@@ -305,6 +308,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
         _distributePrize(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken);
+        paidWinnersCount[currentRiddleId]++;
 
         // Clear revealed state after successful claim to prevent replay
         revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
@@ -397,6 +401,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             if (!isWinner[_riddleId][msg.sender]) {
                 winners[_riddleId].push(msg.sender);
                 isWinner[_riddleId][msg.sender] = true;
+                totalWinnersCount[_riddleId]++; // Increment totalWinnersCount
                 emit WinnerFound(msg.sender, _riddleId);
             }
             emit GuessEvaluated(_riddleId, msg.sender, block.timestamp, true);
@@ -522,82 +527,93 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _riddleId The ID of the riddle for which prizes are being paid out.
      * @param _winners An array of addresses of the winners for the specified riddle.
      */
-    function payout(uint256 _riddleId, address[] memory _winners) public onlyOwner nonReentrant {
+    /**
+     * @notice Handles prize distribution to a batch of winning addresses for a specific riddle.
+     * @dev This function can only be called by the contract owner.
+     *      It allows for batched payouts to manage gas limits for riddles with many winners.
+     *      The riddle is marked as fully paid out only when all registered winners have received their prize.
+     * @param _riddleId The ID of the riddle for which prizes are being paid out.
+     * @param _winnersBatch An array of addresses of the winners to be paid in this batch.
+     */
+    function payout(uint256 _riddleId, address[] memory _winnersBatch) public onlyOwner nonReentrant {
         // Input validation
         require(_riddleId > 0, "Riddle ID must be greater than zero");
         require(_riddleId <= currentRiddleId, "Riddle ID must be current or past");
-        require(_winners.length > 0, "Winners array cannot be empty");
+        require(_winnersBatch.length > 0, "Winners array cannot be empty");
+        require(!isPaidOut[_riddleId], "Payout already executed for this riddle");
 
-        // (1) Validate for duplicate addresses
-        for (uint256 i = 0; i < _winners.length; i++) {
-            for (uint256 j = i + 1; j < _winners.length; j++) {
-                require(_winners[i] != _winners[j], "Duplicate winner addresses not allowed");
+        RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
+
+        // Implement duplicate winner checking for the _winnersBatch array
+        for (uint256 i = 0; i < _winnersBatch.length; i++) {
+            for (uint256 j = i + 1; j < _winnersBatch.length; j++) {
+                require(_winnersBatch[i] != _winnersBatch[j], "Duplicate winner address in batch not allowed");
             }
         }
 
-        RiddleConfig storage riddleConfig = riddleConfigs[_riddleId];
-        require(riddleConfig.prizeAmount > 0, "Riddle prize amount not set");
-
-        // Calculate the prize amount per winner by dividing riddleConfig.prizeAmount by the number of winners.
-        // The remainder is distributed to one winner to avoid rounding errors.
-        uint256 totalWinners = winners[_riddleId].length;
-        require(totalWinners > 0, "No winners registered for this riddle");
-        uint256 perWinnerAmount = riddleConfig.prizeAmount / totalWinners;
-        uint256 remainder = riddleConfig.prizeAmount % totalWinners;
+        // Calculate the prize amount per winner by dividing riddleConfig.prizeAmount by the total number of winners.
+        // The remainder is distributed to the first 'remainder' number of *unpaid* winners.
+        uint256 winnersCount = totalWinnersCount[_riddleId];
+        require(winnersCount > 0, "No winners registered for this riddle");
+        uint256 perWinnerAmount = riddleConfig.prizeAmount / winnersCount;
+        uint256 remainder = riddleConfig.prizeAmount % winnersCount;
 
         require(perWinnerAmount > 0 || remainder > 0, "Per-winner amount must be greater than zero");
 
-        uint256 unclaimedWinnersCount = 0;
-        for (uint256 i = 0; i < _winners.length; i++) {
-            if (!hasClaimed[_riddleId][_winners[i]]) {
-                unclaimedWinnersCount++;
+        uint256 currentBatchDistributedCount = 0;
+        uint256 totalAmountToDistributeInBatch = 0;
+
+        // Determine which winners in the batch are eligible for payout and calculate batch total
+        for (uint256 i = 0; i < _winnersBatch.length; i++) {
+            address winner = _winnersBatch[i];
+            if (isWinner[_riddleId][winner] && !hasClaimed[_riddleId][winner]) {
+                currentBatchDistributedCount++;
+                uint256 amountForThisWinner = perWinnerAmount;
+
+                // Check if this winner should receive a portion of the remainder
+                // The remainder is distributed to the first 'remainder' number of *unpaid* winners
+                if (remainder > 0 && !hasReceivedRemainder[_riddleId][winner] && paidWinnersCount[_riddleId] + currentBatchDistributedCount <= remainder) {
+                    amountForThisWinner += 1; // Distribute 1 unit of remainder to this winner
+                    hasReceivedRemainder[_riddleId][winner] = true;
+                }
+                totalAmountToDistributeInBatch += amountForThisWinner;
             }
         }
 
-        require(unclaimedWinnersCount > 0, "No new winners to pay out");
-
-        // (3) Re-evaluate totalAmountToDistribute
-        // The remainder will be assigned to one unclaimed winner.
-        uint256 totalAmountToDistribute = perWinnerAmount * unclaimedWinnersCount;
-        bool remainderAvailable = remainder > 0 && totalPrizeDistributed[_riddleId] + totalAmountToDistribute < riddleConfig.prizeAmount;
-        if (remainderAvailable) {
-            totalAmountToDistribute += remainder;
-        }
-
+        require(currentBatchDistributedCount > 0, "No new winners in this batch to pay out");
 
         // Ensure respective pool has sufficient total balance before starting distribution
         if (riddleConfig.prizeType == PrizeType.ETH) {
-            require(ethPrizePool >= totalAmountToDistribute, "Insufficient ETH prize pool balance for payout");
+            require(ethPrizePool >= totalAmountToDistributeInBatch, "Insufficient ETH prize pool balance for payout batch");
         } else if (riddleConfig.prizeType == PrizeType.ERC20) {
-            require(tokenPrizePool >= totalAmountToDistribute, "Insufficient ERC20 prize pool balance for payout");
+            require(tokenPrizePool >= totalAmountToDistributeInBatch, "Insufficient ERC20 prize pool balance for payout batch");
         }
 
-        // Design Decision: All-or-nothing batch payout.
-        // If any individual prize transfer fails, the entire transaction will revert.
-        // This ensures atomicity and prevents partial payouts, maintaining consistency
-        // of the prize pool and winner states.
-        uint256 distributedCount = 0;
-        bool remainderDistributed = false; // (2) Remainder distribution flag
-        for (uint256 i = 0; i < _winners.length; i++) {
-            address winner = _winners[i];
+        // Distribute prizes for the current batch
+        uint256 distributedInThisBatch = 0;
+        for (uint256 i = 0; i < _winnersBatch.length; i++) {
+            address winner = _winnersBatch[i];
             if (!hasClaimed[_riddleId][winner]) {
                 hasClaimed[_riddleId][winner] = true; // Mark as claimed before external call
-                uint256 currentWinnerAmount = perWinnerAmount;
-                // (2) Add remainder to the first *unclaimed* winner
-                if (remainderAvailable && !remainderDistributed && !hasReceivedRemainder[_riddleId][winner]) {
-                    currentWinnerAmount += remainder;
-                    hasReceivedRemainder[_riddleId][winner] = true;
-                    remainderDistributed = true;
+                paidWinnersCount[_riddleId]++; // Increment global paid winners count
+
+                uint256 amountForThisWinner = perWinnerAmount;
+                if (hasReceivedRemainder[_riddleId][winner]) { // Check if this winner was marked to receive remainder
+                    amountForThisWinner += 1;
                 }
-                totalPrizeDistributed[_riddleId] += currentWinnerAmount;
-                _distributePrize(winner, currentWinnerAmount, riddleConfig.prizeType, riddleConfig.prizeToken);
-                distributedCount++;
+
+                totalPrizeDistributed[_riddleId] += amountForThisWinner;
+                _distributePrize(winner, amountForThisWinner, riddleConfig.prizeType, riddleConfig.prizeToken);
+                distributedInThisBatch++;
             }
         }
-        // distributedCount should be equal to unclaimedWinnersCount
-        emit PayoutExecuted(_riddleId, distributedCount, totalAmountToDistribute, riddleConfig.prizeType);
 
+        emit PayoutExecuted(_riddleId, distributedInThisBatch, totalAmountToDistributeInBatch, riddleConfig.prizeType);
 
+        // Mark riddle as fully paid out if all winners have been processed
+        if (paidWinnersCount[_riddleId] == totalWinnersCount[_riddleId]) {
+            isPaidOut[_riddleId] = true;
+        }
     }
 
     /**
