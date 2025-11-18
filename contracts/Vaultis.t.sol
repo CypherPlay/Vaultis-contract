@@ -1953,8 +1953,11 @@ contract VaultisTest is Test {
         assertEq(vaultis.winners(1, 0), user1, "User1 should be in the winners array");
         assertEq(vaultis.totalWinnersCount(1), 1, "Total winners count should be 1");
 
-        // User1 submits the same correct guess again (should not add duplicate)
+        // User1 submits the same correct guess again (should now succeed after purchasing a retry)
+        mockERC20.mint(user1, vaultis.RETRY_COST());
         vm.startPrank(user1);
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
         vaultis.submitGuess(1, correctGuessHash);
         vm.stopPrank();
 
