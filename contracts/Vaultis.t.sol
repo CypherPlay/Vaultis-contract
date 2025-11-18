@@ -1929,5 +1929,78 @@ contract VaultisTest is Test {
         assertEq(vaultis.paidWinnersCount(1), numWinners);
         assertTrue(vaultis.isPaidOut(1), "Riddle should be paid out after all batches");
     }
+
+    function testSubmitCorrectGuessAddsWinnerAndPreventsDuplicates() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User1 submits a correct guess
+        bytes32 correctGuessHash = keccak256(abi.encodePacked("correct_answer"));
+        vm.startPrank(user1);
+        vaultis.submitGuess(1, correctGuessHash);
+        vm.stopPrank();
+
+        // Verify user1 is a winner
+        assertTrue(vaultis.isWinner(1, user1), "User1 should be marked as a winner");
+        assertEq(vaultis.winners(1, 0), user1, "User1 should be in the winners array");
+        assertEq(vaultis.totalWinnersCount(1), 1, "Total winners count should be 1");
+
+        // User1 submits the same correct guess again (should now succeed after purchasing a retry)
+        mockERC20.mint(user1, vaultis.RETRY_COST());
+        vm.startPrank(user1);
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
+        vaultis.submitGuess(1, correctGuessHash);
+        vm.stopPrank();
+
+        // Verify user1 is still a winner and no duplicate entry
+        assertTrue(vaultis.isWinner(1, user1), "User1 should still be marked as a winner");
+        assertEq(vaultis.winners(1, 0), user1, "User1 should still be the only entry in the winners array");
+        assertEq(vaultis.totalWinnersCount(1), 1, "Total winners count should still be 1");
+
+        // Another user (user2) submits a correct guess
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vaultis.submitGuess(1, correctGuessHash);
+        vm.stopPrank();
+
+        // Verify user2 is a winner and added to the array
+        assertTrue(vaultis.isWinner(1, user2), "User2 should be marked as a winner");
+        assertEq(vaultis.winners(1, 1), user2, "User2 should be in the winners array at index 1");
+        assertEq(vaultis.totalWinnersCount(1), 2, "Total winners count should be 2");
+    }
+
+    function testSubmitIncorrectGuessDoesNotAddWinner() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User1 submits an incorrect guess
+        bytes32 incorrectGuessHash = keccak256(abi.encodePacked("incorrect_answer"));
+        vm.startPrank(user1);
+        vaultis.submitGuess(1, incorrectGuessHash);
+        vm.stopPrank();
+
+        // Verify user1 is NOT a winner
+        assertFalse(vaultis.isWinner(1, user1), "User1 should NOT be marked as a winner");
+        assertEq(vaultis.totalWinnersCount(1), 0, "Total winners count should be 0");
+    }
 }
 
