@@ -136,9 +136,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
     /**
      * @notice Emitted after a batch payout to multiple winners is successfully executed.
      * @param riddleId The ID of the riddle for which the payout occurred.
-     * @param winnerCount The number of winners who received a payout in this batch.
+     * @param winners The array of addresses of the winners who received a payout in this batch.
      * @param totalAmount The total amount of prize distributed in this batch.
-     * @param prizeType The type of prize (ETH or ERC20).
      */
     event PayoutExecuted(uint256 indexed riddleId, address[] winners, uint256 totalAmount);
     /**
@@ -308,7 +307,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
         _distributePrize(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken);
-        paidWinnersCount[currentRiddleId]++;
+
 
         // Clear revealed state after successful claim to prevent replay
         revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
@@ -383,11 +382,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_riddleId == currentRiddleId, "Not the active riddle ID");
         require(_guessHash != bytes32(0), "Guess hash cannot be zero"); // Validate hash is not empty
-        require(hasParticipated[_riddleId][msg.sender], "Must enter the game first");
+        require(hasParticipated[_riddleId][msg.sender], "Vaultis: Player has not participated in this riddle.");
 
         if (committedGuesses[_riddleId][msg.sender] != bytes32(0)) {
             // If a guess was already submitted, check for retries
-            require(retries[msg.sender] > 0, "No retries available");
+            require(retries[msg.sender] > 0, "Vaultis: No retries available to submit a new guess.");
             retries[msg.sender]--;
             // Clear previous guess to allow new submission
             committedGuesses[_riddleId][msg.sender] = bytes32(0);
