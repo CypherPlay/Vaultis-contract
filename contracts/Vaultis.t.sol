@@ -37,6 +37,15 @@ contract VaultisTest is Test {
     address public user1;
     address public user2;
 
+    function _createUsers(uint256 count) internal returns (address[] memory) {
+        address[] memory users = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            users[i] = address(uint160(uint256(keccak256(abi.encodePacked("user", i)))));
+            vm.deal(users[i], 100 ether);
+        }
+        return users;
+    }
+
     function setUp() public {
         user1 = address(uint160(uint256(keccak256(abi.encodePacked("user1")))));
         user2 = address(uint160(uint256(keccak256(abi.encodePacked("user2")))));
@@ -1541,6 +1550,292 @@ contract VaultisTest is Test {
         assertEq(mockERC20.balanceOf(user3), perWinnerAmount);
         assertTrue(vaultis.hasClaimed(1, user2));
         assertTrue(vaultis.hasClaimed(1, user3));
+    }
+
+    function testPayoutBatchEthPrizeMultipleWinners() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 10 ether;
+        uint256 numWinners = 5;
+        address[] memory users = _createUsers(numWinners);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+
+        // Each user enters, submits, and reveals a correct guess
+        for (uint256 i = 0; i < numWinners; i++) {
+            mockERC20.mint(users[i], vaultis.ENTRY_FEE());
+            vm.startPrank(users[i]);
+            mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+            vaultis.enterGame(1);
+            bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+            vaultis.submitGuess(1, guessHash);
+            vaultis.revealGuess(1, "correct_answer");
+            vm.stopPrank();
+        }
+
+        uint256 perWinnerAmount = prizeAmount / numWinners;
+        uint256 remainder = prizeAmount % numWinners;
+
+        // Payout in batches
+        uint256 batchSize = 2;
+        uint256 totalPaid = 0;
+        uint256 initialVaultisEthBalance = address(vaultis).balance;
+
+        for (uint256 i = 0; i < numWinners; i += batchSize) {
+            address[] memory currentBatch;
+            if (i + batchSize > numWinners) {
+                currentBatch = new address[](numWinners - i);
+                for (uint256 j = 0; j < numWinners - i; j++) {
+                    currentBatch[j] = users[i + j];
+                }
+            } else {
+                currentBatch = new address[](batchSize);
+                for (uint256 j = 0; j < batchSize; j++) {
+                    currentBatch[j] = users[i + j];
+                }
+            }
+
+            vm.startPrank(user1);
+            vaultis.payout(1, currentBatch);
+            vm.stopPrank();
+
+            for (uint256 j = 0; j < currentBatch.length; j++) {
+                address winner = currentBatch[j];
+                assertTrue(vaultis.hasClaimed(1, winner));
+                totalPaid++;
+            }
+        }
+
+        assertEq(vaultis.paidWinnersCount(1), numWinners);
+        assertTrue(vaultis.isPaidOut(1));
+        assertEq(vaultis.ethPrizePool(), 0);
+        assertEq(address(vaultis).balance, initialVaultisEthBalance - prizeAmount);
+
+        // Verify individual balances
+        for (uint256 i = 0; i < numWinners; i++) {
+            uint256 expectedAmount = perWinnerAmount;
+            if (i < remainder) {
+                expectedAmount += 1;
+            }
+            // Note: initial user balance is 100 ether from _createUsers
+            assertEq(users[i].balance, 100 ether + expectedAmount);
+        }
+    }
+
+    function testPayoutBatchErc20PrizeMultipleWinners() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1000;
+        uint256 numWinners = 5;
+        address[] memory users = _createUsers(numWinners);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+
+        // Each user enters, submits, and reveals a correct guess
+        for (uint256 i = 0; i < numWinners; i++) {
+            mockERC20.mint(users[i], vaultis.ENTRY_FEE());
+            vm.startPrank(users[i]);
+            mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+            vaultis.enterGame(1);
+            bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+            vaultis.submitGuess(1, guessHash);
+            vaultis.revealGuess(1, "correct_answer");
+            vm.stopPrank();
+        }
+
+        uint256 perWinnerAmount = prizeAmount / numWinners;
+        uint256 remainder = prizeAmount % numWinners;
+
+        // Payout in batches
+        uint256 batchSize = 2;
+        uint256 totalPaid = 0;
+
+        for (uint256 i = 0; i < numWinners; i += batchSize) {
+            address[] memory currentBatch;
+            if (i + batchSize > numWinners) {
+                currentBatch = new address[](numWinners - i);
+                for (uint256 j = 0; j < numWinners - i; j++) {
+                    currentBatch[j] = users[i + j];
+                }
+            } else {
+                currentBatch = new address[](batchSize);
+                for (uint256 j = 0; j < batchSize; j++) {
+                    currentBatch[j] = users[i + j];
+                }
+            }
+
+            vm.startPrank(user1);
+            vaultis.payout(1, currentBatch);
+            vm.stopPrank();
+
+            for (uint256 j = 0; j < currentBatch.length; j++) {
+                address winner = currentBatch[j];
+                assertTrue(vaultis.hasClaimed(1, winner));
+                totalPaid++;
+            }
+        }
+
+        assertEq(vaultis.paidWinnersCount(1), numWinners);
+        assertTrue(vaultis.isPaidOut(1));
+        assertEq(vaultis.tokenPrizePool(), 0);
+
+        // Verify individual balances
+        for (uint256 i = 0; i < numWinners; i++) {
+            uint256 expectedAmount = perWinnerAmount;
+            if (i < remainder) {
+                expectedAmount += 1;
+            }
+        }
+    }
+
+    function testPayoutDuplicateWinnersInBatchFails() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 100;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        // User2 enters, submits, and reveals a correct guess to be a registered winner
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
+
+        address[] memory winnersBatch = new address[](2);
+        winnersBatch[0] = user2;
+        winnersBatch[1] = user2; // Duplicate address in the batch
+
+        vm.expectRevert("Duplicate winner address in batch not allowed");
+        vm.startPrank(user1);
+        vaultis.payout(1, winnersBatch);
+        vm.stopPrank();
+    }
+
+    function testPayoutAllWinnersPaidOutFlag() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 10 ether;
+        uint256 numWinners = 3;
+        address[] memory users = _createUsers(numWinners);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        // Each user enters, submits, and reveals a correct guess
+        for (uint256 i = 0; i < numWinners; i++) {
+            mockERC20.mint(users[i], vaultis.ENTRY_FEE());
+            vm.startPrank(users[i]);
+            mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+            vaultis.enterGame(1);
+            bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+            vaultis.submitGuess(1, guessHash);
+            vaultis.revealGuess(1, "correct_answer");
+            vm.stopPrank();
+        }
+
+        assertFalse(vaultis.isPaidOut(1), "Riddle should not be paid out initially");
+
+        // Payout first batch (2 winners)
+        address[] memory batch1 = new address[](2);
+        batch1[0] = users[0];
+        batch1[1] = users[1];
+
+        vm.startPrank(user1);
+        vaultis.payout(1, batch1);
+        vm.stopPrank();
+
+        assertFalse(vaultis.isPaidOut(1), "Riddle should not be paid out after first batch");
+        assertEq(vaultis.paidWinnersCount(1), 2);
+
+        // Payout second batch (1 winner - remaining)
+        address[] memory batch2 = new address[](1);
+        batch2[0] = users[2];
+
+        vm.startPrank(user1);
+        vaultis.payout(1, batch2);
+        vm.stopPrank();
+
+        assertTrue(vaultis.isPaidOut(1), "Riddle should be paid out after all batches");
+        assertEq(vaultis.paidWinnersCount(1), numWinners);
+    }
+
+    function testPayoutGasEfficiencyLargeNumberOfWinners() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 100 ether;
+        uint256 numWinners = 50; // Test with a large number of winners
+        address[] memory users = _createUsers(numWinners);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        (bool success, ) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        // Each user enters, submits, and reveals a correct guess
+        for (uint256 i = 0; i < numWinners; i++) {
+            mockERC20.mint(users[i], vaultis.ENTRY_FEE());
+            vm.startPrank(users[i]);
+            mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+            vaultis.enterGame(1);
+            bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+            vaultis.submitGuess(1, guessHash);
+            vaultis.revealGuess(1, "correct_answer");
+            vm.stopPrank();
+        }
+
+        uint256 batchSize = 10; // Process in batches of 10
+        uint256 totalGasUsed = 0;
+
+        for (uint256 i = 0; i < numWinners; i += batchSize) {
+            address[] memory currentBatch;
+            if (i + batchSize > numWinners) {
+                currentBatch = new address[](numWinners - i);
+                for (uint256 j = 0; j < numWinners - i; j++) {
+                    currentBatch[j] = users[i + j];
+                }
+            } else {
+                currentBatch = new address[](batchSize);
+                for (uint256 j = 0; j < batchSize; j++) {
+                    currentBatch[j] = users[i + j];
+                }
+            }
+
+            vm.startPrank(user1);
+            vm.recordGas();
+            vaultis.payout(1, currentBatch);
+            totalGasUsed += vm.stopAndReturnGas();
+            vm.stopPrank();
+        }
+
+        console.log("Total gas used for payout with %s winners: %s", numWinners, totalGasUsed);
+        // Assert that total gas used is within a reasonable limit (e.g., less than 10 million gas)
+        // This value might need to be adjusted based on actual gas usage and block gas limits.
+        assertTrue(totalGasUsed < 10_000_000, "Total gas usage for payout exceeded expected limit");
+        assertTrue(vaultis.isPaidOut(1), "Riddle should be paid out after all batches");
     }
 }
 
