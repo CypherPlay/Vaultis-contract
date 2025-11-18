@@ -384,17 +384,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(_guessHash != bytes32(0), "Guess hash cannot be zero"); // Validate hash is not empty
         require(hasParticipated[_riddleId][msg.sender], "Vaultis: Player has not participated in this riddle.");
 
-        if (committedGuesses[_riddleId][msg.sender] != bytes32(0)) {
-            // If a guess was already submitted, check for retries
-            require(retries[msg.sender] > 0, "Vaultis: No retries available to submit a new guess.");
-            retries[msg.sender]--;
-            // Clear previous guess to allow new submission
-            committedGuesses[_riddleId][msg.sender] = bytes32(0);
-            committedAt[_riddleId][msg.sender] = 0;
-            // Also clear revealed state if any, to ensure a fresh attempt
-            revealedGuessHash[_riddleId][msg.sender] = bytes32(0);
-            hasRevealed[_riddleId][msg.sender] = false;
-        }
+        bool hadPreviousGuess = committedGuesses[_riddleId][msg.sender] != bytes32(0);
 
         if (_guessHash == sAnswerHash) {
             if (!isWinner[_riddleId][msg.sender]) {
@@ -406,6 +396,16 @@ contract Vaultis is Ownable, ReentrancyGuard {
             emit GuessEvaluated(_riddleId, msg.sender, block.timestamp, true);
         } else {
             emit GuessEvaluated(_riddleId, msg.sender, block.timestamp, false);
+            if (hadPreviousGuess) {
+                require(retries[msg.sender] > 0, "Vaultis: No retries available to submit a new guess.");
+                retries[msg.sender]--;
+                // Clear previous guess to allow new submission
+                committedGuesses[_riddleId][msg.sender] = bytes32(0);
+                committedAt[_riddleId][msg.sender] = 0;
+                // Also clear revealed state if any, to ensure a fresh attempt
+                revealedGuessHash[_riddleId][msg.sender] = bytes32(0);
+                hasRevealed[_riddleId][msg.sender] = false;
+            }
         }
         committedGuesses[_riddleId][msg.sender] = _guessHash;
         committedAt[_riddleId][msg.sender] = block.timestamp;
