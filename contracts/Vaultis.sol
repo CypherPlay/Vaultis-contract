@@ -308,6 +308,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
         _distributePrize(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken);
+        paidWinnersCount[currentRiddleId]++;
 
         // Clear revealed state after successful claim to prevent replay
         revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
@@ -552,8 +553,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         // Calculate the prize amount per winner by dividing riddleConfig.prizeAmount by the total number of winners.
         // The remainder is distributed to the first 'remainder' number of *unpaid* winners.
-        uint256 perWinnerAmount = riddleConfig.prizeAmount / totalWinnersCount[_riddleId];
-        uint256 remainder = riddleConfig.prizeAmount % totalWinnersCount[_riddleId];
+        uint256 winnersCount = totalWinnersCount[_riddleId];
+        require(winnersCount > 0, "No winners registered for this riddle");
+        uint256 perWinnerAmount = riddleConfig.prizeAmount / winnersCount;
+        uint256 remainder = riddleConfig.prizeAmount % winnersCount;
 
         require(perWinnerAmount > 0 || remainder > 0, "Per-winner amount must be greater than zero");
 
@@ -563,7 +566,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         // Determine which winners in the batch are eligible for payout and calculate batch total
         for (uint256 i = 0; i < _winnersBatch.length; i++) {
             address winner = _winnersBatch[i];
-            if (!hasClaimed[_riddleId][winner]) {
+            if (isWinner[_riddleId][winner] && !hasClaimed[_riddleId][winner]) {
                 currentBatchDistributedCount++;
                 uint256 amountForThisWinner = perWinnerAmount;
 

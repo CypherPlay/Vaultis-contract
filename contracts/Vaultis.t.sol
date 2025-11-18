@@ -1257,6 +1257,17 @@ contract VaultisTest is Test {
         assertEq(vaultis.tokenPrizePool(), prizeAmount);
         assertEq(mockERC20.balanceOf(user2), 0);
 
+        // User2 enters, submits, and reveals a correct guess
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
+
         address[] memory winners = new address[](1);
         winners[0] = user2;
 
@@ -1285,6 +1296,27 @@ contract VaultisTest is Test {
         assertEq(vaultis.tokenPrizePool(), prizeAmount);
         assertEq(mockERC20.balanceOf(user2), 0);
         assertEq(mockERC20.balanceOf(user3), 0);
+
+        // User2 enters, submits, and reveals a correct guess
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
+
+        // User3 enters, submits, and reveals a correct guess
+        mockERC20.mint(user3, vaultis.ENTRY_FEE());
+        vm.startPrank(user3);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
 
         address[] memory winners = new address[](2);
         winners[0] = user2;
@@ -1321,6 +1353,7 @@ contract VaultisTest is Test {
         vaultis.enterGame(1);
         bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
         vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
         vaultis.revealGuess(1, "correct_answer");
         vm.stopPrank();
 
@@ -1337,7 +1370,7 @@ contract VaultisTest is Test {
 
         // Try to payout again to the same winner
         vm.startPrank(user1);
-        vm.expectRevert("No new winners to pay out"); // Because user2 is already claimed
+        vm.expectRevert("Payout already executed for this riddle"); // Because user2 is already claimed
         vaultis.payout(1, winners);
         vm.stopPrank();
     }
@@ -1354,6 +1387,17 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.ethPrizePool(), prizeAmount / 2);
+
+        // User2 enters, submits, and reveals a correct guess to be a registered winner
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
 
         address[] memory winners = new address[](1);
         winners[0] = user2;
@@ -1376,6 +1420,17 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.tokenPrizePool(), prizeAmount / 2);
+
+        // User2 enters, submits, and reveals a correct guess to be a registered winner
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
 
         address[] memory winners = new address[](1);
         winners[0] = user2;
@@ -1457,6 +1512,16 @@ contract VaultisTest is Test {
 
         assertEq(mockERC20.balanceOf(user2), prizeAmount); // User2 claimed full prize
         assertEq(vaultis.tokenPrizePool(), 0); // Pool should be empty after first claim
+
+        // User3 enters, submits, and reveals a correct guess to be a registered winner
+        mockERC20.mint(user3, vaultis.ENTRY_FEE());
+        vm.startPrank(user3);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
 
         // Now, payout with user2 and user3. User2 has already claimed.
         address[] memory winners = new address[](2);
@@ -1541,6 +1606,27 @@ contract VaultisTest is Test {
         assertEq(vaultis.tokenPrizePool(), prizeAmount);
         assertEq(mockERC20.balanceOf(user2), 0);
         assertEq(mockERC20.balanceOf(user3), 0);
+
+        // User2 enters, submits, and reveals a correct guess
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
+
+        // User3 enters, submits, and reveals a correct guess
+        mockERC20.mint(user3, vaultis.ENTRY_FEE());
+        vm.startPrank(user3);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vaultis.submitGuess(1, guessHash);
+        vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
 
         address[] memory winners = new address[](2);
         winners[0] = user2;
