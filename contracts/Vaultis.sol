@@ -58,6 +58,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public isWinner;
     mapping(uint256 => uint256) public totalPrizeDistributed;
     mapping(uint256 => mapping(address => bool)) public hasReceivedRemainder;
+    mapping(uint256 => bool) public isPaidOut;
 
     event WinnerFound(address indexed winner, uint256 indexed riddleId);
 
@@ -523,6 +524,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _winners An array of addresses of the winners for the specified riddle.
      */
     function payout(uint256 _riddleId, address[] memory _winners) public onlyOwner nonReentrant {
+        require(!isPaidOut[_riddleId], "Payout already executed for this riddle");
+
         // Input validation
         require(_riddleId > 0, "Riddle ID must be greater than zero");
         require(_riddleId <= currentRiddleId, "Riddle ID must be current or past");
@@ -596,6 +599,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         }
         // distributedCount should be equal to unclaimedWinnersCount
         emit PayoutExecuted(_riddleId, distributedCount, totalAmountToDistribute, riddleConfig.prizeType);
+        isPaidOut[_riddleId] = true;
 
 
     }
