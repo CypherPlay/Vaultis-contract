@@ -388,7 +388,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      *      **Retry Usage:**
      *      If a player has previously submitted a guess for the current riddle and their new `_guessHash` does not match the `sAnswerHash`,
      *      a retry is consumed. Players can purchase retries using `purchaseRetry` up to `MAX_RETRIES`.
-     *      If a retry is used, the previous committed guess and its timestamp are cleared, allowing a new guess to be committed.
+     *      If a retry is used, the previous committed guess and its timestamp are cleared, allowing a new guess to be committed. This also clears any previously revealed guess and its state for the current riddle, requiring a fresh commit-reveal cycle.
      *
      *      **Emitted Events:**
      *      - `GuessSubmitted(player, riddleId, guessHash)`: Always emitted when a guess is successfully committed.
@@ -405,9 +405,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
      *      **Example Usage (Web3.js/Ethers.js):**
      *      ```javascript
      *      const playerGuess = "mysecretanswer";
-     *      const hashedGuess = web3.utils.keccak256(web3.eth.abi.encodePacked(playerGuess));
+     *      const hashedGuess = web3.utils.soliditySha3({ type: "string", value: playerGuess });
      *      // Or for ethers.js:
-     *      // const hashedGuess = ethers.utils.keccak256(ethers.utils.defaultAbiCoder.encode(['string'], [playerGuess]));
+     *      // const hashedGuess = ethers.utils.solidityKeccak256(["string"], [playerGuess]); // For ethers v5.x
+     *      // const hashedGuess = ethers.solidityPackedKeccak256(["string"], [playerGuess]); // For ethers v6.x
      *      await vaultisContract.methods.submitGuess(currentRiddleId, hashedGuess).send({ from: playerAddress });
      *      ```
      *
