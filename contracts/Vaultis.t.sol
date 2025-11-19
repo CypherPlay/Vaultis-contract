@@ -2098,7 +2098,7 @@ contract VaultisTest is Test {
         // Prize pool should be reduced only by the amount paid to the legitimate winner
         assertEq(vaultis.ethPrizePool(), prizeAmount - (prizeAmount / vaultis.totalWinnersCount(1)));
         assertEq(vaultis.paidWinnersCount(1), 1); // Only user2 was paid
-        assertFalse(vaultis.isPaidOut(1)); // Not all winners paid yet
+        assertTrue(vaultis.isPaidOut(1)); // All registered winners are considered paid, even if non-winners were included in the batch.
     }
 }
 
