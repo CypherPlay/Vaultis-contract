@@ -9,12 +9,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 contract Vaultis is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
     constructor(address initialOwner, address _retryTokenAddress) Ownable(initialOwner) {
         require(_retryTokenAddress != address(0), "Retry token address cannot be zero");
         require(address(_retryTokenAddress).code.length > 0, "Retry token has no contract code");
         try IERC20(_retryTokenAddress).totalSupply() returns (uint256) {
-            // Token is valid
-        } catch {
+        // Token is valid
+        }
+        catch {
             revert("Invalid ERC-20 token for retry: totalSupply call failed");
         }
         entryFeeToken = IERC20(address(0));
@@ -41,11 +43,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public constant RETRY_COST = 0.1 ether; // Example retry cost
     uint256 public constant MAX_RETRIES = 3; // Max retries per player per riddle
 
-    enum PrizeType { ETH, ERC20 }
+    enum PrizeType {
+        ETH,
+        ERC20
+    }
 
     // Track entry and claim independently to avoid blocking legitimate claims
     mapping(uint256 => mapping(address => bool)) public hasParticipated; // entered
-    mapping(uint256 => mapping(address => bool)) public hasClaimed;      // claimed
+    mapping(uint256 => mapping(address => bool)) public hasClaimed; // claimed
     mapping(address => uint256) public retries;
     mapping(address => uint256) private lastRiddleIdForUser;
     mapping(uint256 => mapping(address => bytes32)) public committedGuesses; // Stores hashed guesses for commit-reveal
@@ -60,7 +65,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public hasReceivedRemainder;
     mapping(uint256 => bool) public isPaidOut;
     mapping(uint256 => uint256) public totalWinnersCount; // New: Total number of winners for a riddle
-    mapping(uint256 => uint256) public paidWinnersCount;  // New: Number of winners paid for a riddle
+    mapping(uint256 => uint256) public paidWinnersCount; // New: Number of winners paid for a riddle
 
     event WinnerFound(address indexed winner, uint256 indexed riddleId);
 
@@ -165,13 +170,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param entryFeeTokenAddress The address of the ERC20 token for the entry fee, otherwise address(0).
      */
     event RiddleInitialized(
-                    uint256 indexed riddleId,
-                    bytes32 answerHash,
-                    uint8 prizeType,
-                    address prizeTokenAddress,
-                    uint256 prizeAmount,
-                    address entryFeeTokenAddress    );
-
+        uint256 indexed riddleId,
+        bytes32 answerHash,
+        uint8 prizeType,
+        address prizeTokenAddress,
+        uint256 prizeAmount,
+        address entryFeeTokenAddress
+    );
 
     /**
      * @notice Allows a user to deposit ETH into their personal balance within the contract.
@@ -204,7 +209,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
         require(currentRiddleConfig.prizeType == PrizeType.ERC20, "Current riddle prize is not ERC20");
         require(address(currentRiddleConfig.prizeToken) != address(0), "Prize token not set");
-        
+
         currentRiddleConfig.prizeToken.safeTransferFrom(msg.sender, address(this), _amount);
         tokenPrizePool += _amount;
         emit PrizeFunded(msg.sender, _amount, PrizeType.ERC20);
@@ -232,9 +237,9 @@ contract Vaultis is Ownable, ReentrancyGuard {
     function ownerWithdraw(uint256 _amount) public onlyOwner nonReentrant {
         require(_amount > 0, "Owner withdrawal amount must be greater than zero");
         require(ethPrizePool >= _amount, "Insufficient ETH prize pool");
-        
+
         ethPrizePool -= _amount;
-        (bool success, ) = owner().call{value: _amount, gas: 200000}("");
+        (bool success,) = owner().call{value: _amount, gas: 200000}("");
         require(success, "Owner withdrawal failed");
         emit OwnerWithdrawal(owner(), _amount);
     }
@@ -250,7 +255,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(tokenPrizePool >= _amount, "Insufficient token prize pool");
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
         require(address(currentRiddleConfig.prizeToken) != address(0), "Prize token not set");
-        
+
         tokenPrizePool -= _amount;
         currentRiddleConfig.prizeToken.safeTransfer(owner(), _amount);
         emit OwnerWithdrawTokens(_amount);
@@ -271,7 +276,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             require(ethPrizePool >= _amount, "Insufficient ETH prize pool balance");
             require(address(this).balance >= _amount, "Insufficient contract ETH balance");
             ethPrizePool -= _amount;
-            (bool success, ) = _winner.call{value: _amount}("");
+            (bool success,) = _winner.call{value: _amount}("");
             require(success, "ETH transfer failed");
         } else if (_prizeType == PrizeType.ERC20) {
             require(address(_prizeToken) != address(0), "Prize token not set");
@@ -288,7 +293,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _answer The player's proposed answer to the riddle.
      */
     /**
-     * @dev IMPORTANT DEPLOYMENT NOTE: The hashing mechanism for answers was changed from `abi.encodePacked` to `abi.encode`
+     * @dev IMPORTANT DEPLOYMENT NOTE: The hashing mechanism for answers was changed from `abi.encode` to `abi.encodePacked`
      *      for improved security. This is a BREAKING CHANGE for existing riddles.
      *      Deployment to an existing system requires a migration plan:
      *      1. Ensure no active riddles are using the old `abi.encodePacked` hashing.
@@ -301,13 +306,18 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(hasParticipated[currentRiddleId][msg.sender], "Must enter the game first");
         require(!hasClaimed[currentRiddleId][msg.sender], "Already claimed");
         require(hasRevealed[currentRiddleId][msg.sender], "Must reveal guess before solving");
+        require(isWinner[currentRiddleId][msg.sender], "Not a registered winner for the current riddle");
 
-        require(revealedGuessHash[currentRiddleId][msg.sender] == keccak256(abi.encodePacked(_answer)), "Revealed guess does not match provided answer");
+        require(
+            revealedGuessHash[currentRiddleId][msg.sender] == keccak256(abi.encodePacked(_answer)),
+            "Revealed guess does not match provided answer"
+        );
 
         hasClaimed[currentRiddleId][msg.sender] = true; // mark claimed
         RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
-        _distributePrize(msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken);
-
+        _distributePrize(
+            msg.sender, currentRiddleConfig.prizeAmount, currentRiddleConfig.prizeType, currentRiddleConfig.prizeToken
+        );
 
         // Clear revealed state after successful claim to prevent replay
         revealedGuessHash[currentRiddleId][msg.sender] = bytes32(0);
@@ -329,7 +339,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             retries[msg.sender] = 0;
             lastRiddleIdForUser[msg.sender] = _riddleId;
         }
-        
+
         if (ENTRY_FEE > 0) {
             IERC20 token = entryFeeToken;
             require(address(token) != address(0), "Entry fee token not set");
@@ -501,7 +511,14 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _prizeAmount The amount of the prize.
      * @param _entryFeeTokenAddress The address of the ERC20 token for the entry fee, otherwise address(0).
      */
-    function setRiddle(uint256 _riddleId, bytes32 _answerHash, PrizeType _prizeType, address _prizeTokenAddress, uint256 _prizeAmount, address _entryFeeTokenAddress) public onlyOwner {
+    function setRiddle(
+        uint256 _riddleId,
+        bytes32 _answerHash,
+        PrizeType _prizeType,
+        address _prizeTokenAddress,
+        uint256 _prizeAmount,
+        address _entryFeeTokenAddress
+    ) public onlyOwner {
         require(_riddleId > 0, "Riddle ID cannot be zero");
         require(_riddleId > currentRiddleId, "Riddle ID must be greater than current");
         require(_prizeAmount > 0, "Prize amount must be greater than zero");
@@ -512,27 +529,34 @@ contract Vaultis is Ownable, ReentrancyGuard {
             // Check if the address contains contract bytecode
             require(address(_prizeTokenAddress).code.length > 0, "Prize token has no contract code");
             try IERC20(_prizeTokenAddress).totalSupply() returns (uint256) {
-                // Token is valid
-            } catch {
+            // Token is valid
+            }
+            catch {
                 revert("Invalid ERC-20 token: totalSupply call failed");
             }
-            // prizeToken = IERC20(_prizeTokenAddress); // Removed, now part of RiddleConfig
+            // prizeToken = IERC20(_prizeTokenAddress);
         } else {
             require(_prizeTokenAddress == address(0), "Prize token address must be zero for ETH prize");
-            // prizeToken = IERC20(address(0)); // Removed, now part of RiddleConfig
+            // prizeToken = IERC20(address(0));
         }
 
         if (ENTRY_FEE > 0) {
-            require(_entryFeeTokenAddress != address(0), "Entry fee token address cannot be zero if entry fee amount is greater than zero");
+            require(
+                _entryFeeTokenAddress != address(0),
+                "Entry fee token address cannot be zero if entry fee amount is greater than zero"
+            );
             require(address(_entryFeeTokenAddress).code.length > 0, "Entry fee token has no contract code");
             try IERC20(_entryFeeTokenAddress).totalSupply() returns (uint256) {
-                // Token is valid
-            } catch {
+            // Token is valid
+            }
+            catch {
                 revert("Invalid ERC-20 token for entry fee: totalSupply call failed");
             }
             entryFeeToken = IERC20(_entryFeeTokenAddress);
         } else {
-            require(_entryFeeTokenAddress == address(0), "Entry fee token address must be zero if entry fee amount is zero");
+            require(
+                _entryFeeTokenAddress == address(0), "Entry fee token address must be zero if entry fee amount is zero"
+            );
             entryFeeToken = IERC20(address(0));
         }
 
@@ -541,19 +565,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
         currentRiddleId = _riddleId;
         sAnswerHash = _answerHash;
 
-        riddleConfigs[_riddleId] = RiddleConfig({
-            prizeAmount: _prizeAmount,
-            prizeType: _prizeType,
-            prizeToken: IERC20(_prizeTokenAddress)
-        });
+        riddleConfigs[_riddleId] =
+            RiddleConfig({prizeAmount: _prizeAmount, prizeType: _prizeType, prizeToken: IERC20(_prizeTokenAddress)});
 
         emit RiddleInitialized(
-            _riddleId,
-            _answerHash,
-            uint8(_prizeType),
-            _prizeTokenAddress,
-            _prizeAmount,
-            _entryFeeTokenAddress
+            _riddleId, _answerHash, uint8(_prizeType), _prizeTokenAddress, _prizeAmount, _entryFeeTokenAddress
         );
     }
 
@@ -568,6 +584,42 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @dev This function can only be called by the contract owner.
      *      It allows for batched payouts to manage gas limits for riddles with many winners.
      *      The riddle is marked as fully paid out only when all registered winners have received their prize.
+     *
+     *      **Prize Calculation and Distribution:**
+     *      1.  **Per-Winner Amount:** The total `prizeAmount` for the riddle (from `riddleConfigs[_riddleId].prizeAmount`)
+     *          is divided equally among `totalWinnersCount[_riddleId]` to determine the base `perWinnerAmount`.
+     *      2.  **Remainder Distribution:** Any remainder from the division (`prizeAmount % totalWinnersCount`)
+     *          is distributed by adding 1 unit to the `perWinnerAmount` for the first `remainder` number of
+     *          *unpaid* winners. This ensures all prize funds are distributed.
+     *      3.  **Batch Processing:** The function processes winners in batches (`_winnersBatch`) to manage gas costs.
+     *          It first calculates the `totalAmountToDistributeInBatch` by summing the individual prize amounts
+     *          (including any remainder portions) for eligible winners within the current batch.
+     *      4.  **Eligibility:** Only winners who are registered (`isWinner[_riddleId][winner]`) and have not yet
+     *          claimed their prize (`!hasClaimed[_riddleId][winner]`) are eligible for payout in a batch.
+     *      5.  **Fund Check:** Before initiating transfers, the function verifies that the respective prize pool
+     *          (ETH or ERC20) has sufficient balance to cover the `totalAmountToDistributeInBatch`.
+     *      6.  **Individual Distribution:** Each eligible winner in the batch receives their calculated prize amount
+     *          via the internal `_distributePrize` function.
+     *
+     *      **Reentrancy Safety:**
+     *      -   The `nonReentrant` modifier is used to prevent reentrancy attacks during external calls
+     *          made by `_distributePrize` (e.g., ETH transfers).
+     *      -   The `hasClaimed[_riddleId][winner]` state is updated *before* the external prize distribution call
+     *          to adhere to the Checks-Effects-Interactions pattern, further mitigating reentrancy risks.
+     *
+     *      **State Updates:**
+     *      -   `hasClaimed[_riddleId][winner]` is set to `true` for each winner successfully paid.
+     *      -   `paidWinnersCount[_riddleId]` is incremented for each winner paid.
+     *      -   `totalPrizeDistributed[_riddleId]` accumulates the total prize paid for the riddle.
+     *      -   `hasReceivedRemainder[_riddleId][winner]` is set to `true` for winners who receive a remainder portion.
+     *      -   `isPaidOut[_riddleId]` is set to `true` once `paidWinnersCount[_riddleId]` equals `totalWinnersCount[_riddleId]`,
+     *          indicating all winners for the riddle have been paid.
+     *
+     *      **Event Emission:**
+     *      -   `PayoutExecuted(_riddleId, _winnersBatch, totalAmountToDistributeInBatch)` is emitted after each
+     *          successful batch payout, providing details of the riddle, the winners in the batch, and the total
+     *          amount distributed in that batch.
+     *
      * @param _riddleId The ID of the riddle for which prizes are being paid out.
      * @param _winnersBatch An array of addresses of the winners to be paid in this batch.
      */
@@ -608,7 +660,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
                 // Check if this winner should receive a portion of the remainder
                 // The remainder is distributed to the first 'remainder' number of *unpaid* winners
-                if (remainder > 0 && !hasReceivedRemainder[_riddleId][winner] && paidWinnersCount[_riddleId] + currentBatchDistributedCount <= remainder) {
+                if (
+                    remainder > 0 && !hasReceivedRemainder[_riddleId][winner]
+                        && paidWinnersCount[_riddleId] + currentBatchDistributedCount <= remainder
+                ) {
                     amountForThisWinner += 1; // Distribute 1 unit of remainder to this winner
                     hasReceivedRemainder[_riddleId][winner] = true;
                 }
@@ -620,21 +675,27 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         // Ensure respective pool has sufficient total balance before starting distribution
         if (riddleConfig.prizeType == PrizeType.ETH) {
-            require(ethPrizePool >= totalAmountToDistributeInBatch, "Insufficient ETH prize pool balance for payout batch");
+            require(
+                ethPrizePool >= totalAmountToDistributeInBatch, "Insufficient ETH prize pool balance for payout batch"
+            );
         } else if (riddleConfig.prizeType == PrizeType.ERC20) {
-            require(tokenPrizePool >= totalAmountToDistributeInBatch, "Insufficient ERC20 prize pool balance for payout batch");
+            require(
+                tokenPrizePool >= totalAmountToDistributeInBatch,
+                "Insufficient ERC20 prize pool balance for payout batch"
+            );
         }
 
         // Distribute prizes for the current batch
         uint256 distributedInThisBatch = 0;
         for (uint256 i = 0; i < _winnersBatch.length; i++) {
             address winner = _winnersBatch[i];
-            if (!hasClaimed[_riddleId][winner]) {
+            if (isWinner[_riddleId][winner] && !hasClaimed[_riddleId][winner]) {
                 hasClaimed[_riddleId][winner] = true; // Mark as claimed before external call
                 paidWinnersCount[_riddleId]++; // Increment global paid winners count
 
                 uint256 amountForThisWinner = perWinnerAmount;
-                if (hasReceivedRemainder[_riddleId][winner]) { // Check if this winner was marked to receive remainder
+                if (hasReceivedRemainder[_riddleId][winner]) {
+                    // Check if this winner was marked to receive remainder
                     amountForThisWinner += 1;
                 }
 
