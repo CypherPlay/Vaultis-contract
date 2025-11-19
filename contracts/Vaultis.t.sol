@@ -2008,27 +2008,97 @@ contract VaultisTest is Test {
         assertEq(vaultis.totalWinnersCount(1), 2, "Total winners count should be 2");
     }
 
-    function testSubmitIncorrectGuessDoesNotAddWinner() public {
+    function testSolveRiddleAndClaimNonWinnerFails() public {
         bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
         uint256 prizeAmount = 1 ether;
 
         vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
         vaultis.setRevealDelay(0); // No delay for testing
-        mockERC20.mint(user1, vaultis.ENTRY_FEE());
+        (bool success,) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
         mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
 
-        // User1 submits an incorrect guess
+        // User2 submits an INCORRECT guess
         bytes32 incorrectGuessHash = keccak256(abi.encodePacked("incorrect_answer"));
-        vm.startPrank(user1);
+        vm.startPrank(user2);
         vaultis.submitGuess(1, incorrectGuessHash);
         vm.stopPrank();
 
-        // Verify user1 is NOT a winner
-        assertFalse(vaultis.isWinner(1, user1), "User1 should NOT be marked as a winner");
-        assertEq(vaultis.totalWinnersCount(1), 0, "Total winners count should be 0");
+        // User2 reveals their incorrect guess
+        vm.startPrank(user2);
+        vaultis.revealGuess(1, "incorrect_answer");
+        vm.stopPrank();
+
+        // User2 (non-winner) attempts to claim, should revert
+        vm.expectRevert("Not a registered winner for the current riddle");
+        vm.startPrank(user2);
+        vaultis.solveRiddleAndClaim("incorrect_answer");
+        vm.stopPrank();
+    }
+
+    function testPayoutWithNonWinnerInBatch() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 2 ether; // Enough for 2 winners
+        address nonWinner = address(uint160(uint256(keccak256(abi.encodePacked("nonWinner")))));
+        vm.deal(nonWinner, 100 ether);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        (bool success,) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+        uint256 initialUser2Balance = user2.balance;
+        uint256 initialNonWinnerBalance = nonWinner.balance;
+
+        // User2 enters, submits, and reveals a correct guess (legitimate winner)
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 correctGuessHash = keccak256(abi.encodePacked("correct_answer"));
+        vaultis.submitGuess(1, correctGuessHash);
+        vaultis.revealGuess(1, "correct_answer");
+        vm.stopPrank();
+
+        // Non-winner enters, submits, and reveals an INCORRECT guess (not a winner)
+        mockERC20.mint(nonWinner, vaultis.ENTRY_FEE());
+        vm.startPrank(nonWinner);
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        bytes32 incorrectGuessHash = keccak256(abi.encodePacked("incorrect_answer"));
+        vaultis.submitGuess(1, incorrectGuessHash);
+        vaultis.revealGuess(1, "incorrect_answer");
+        vm.stopPrank();
+
+        // Create a batch with both the legitimate winner and the non-winner
+        address[] memory winnersBatch = new address[](2);
+        winnersBatch[0] = user2;
+        winnersBatch[1] = nonWinner;
+
+        vm.startPrank(user1);
+        vaultis.payout(1, winnersBatch);
+        vm.stopPrank();
+
+        // Assertions
+        // User2 (legitimate winner) should have received their prize
+        assertEq(user2.balance, initialUser2Balance + (prizeAmount / vaultis.totalWinnersCount(1)));
+        assertTrue(vaultis.hasClaimed(1, user2));
+
+        // Non-winner should NOT have received any prize
+        assertEq(nonWinner.balance, initialNonWinnerBalance);
+        assertFalse(vaultis.hasClaimed(1, nonWinner));
+
+        // Prize pool should be reduced only by the amount paid to the legitimate winner
+        assertEq(vaultis.ethPrizePool(), prizeAmount - (prizeAmount / vaultis.totalWinnersCount(1)));
+        assertEq(vaultis.paidWinnersCount(1), 1); // Only user2 was paid
+        assertFalse(vaultis.isPaidOut(1)); // Not all winners paid yet
     }
 }
 

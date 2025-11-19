@@ -293,7 +293,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param _answer The player's proposed answer to the riddle.
      */
     /**
-     * @dev IMPORTANT DEPLOYMENT NOTE: The hashing mechanism for answers was changed from `abi.encodePacked` to `abi.encode`
+     * @dev IMPORTANT DEPLOYMENT NOTE: The hashing mechanism for answers was changed from `abi.encode` to `abi.encodePacked`
      *      for improved security. This is a BREAKING CHANGE for existing riddles.
      *      Deployment to an existing system requires a migration plan:
      *      1. Ensure no active riddles are using the old `abi.encodePacked` hashing.
@@ -306,6 +306,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(hasParticipated[currentRiddleId][msg.sender], "Must enter the game first");
         require(!hasClaimed[currentRiddleId][msg.sender], "Already claimed");
         require(hasRevealed[currentRiddleId][msg.sender], "Must reveal guess before solving");
+        require(isWinner[currentRiddleId][msg.sender], "Not a registered winner for the current riddle");
 
         require(
             revealedGuessHash[currentRiddleId][msg.sender] == keccak256(abi.encodePacked(_answer)),
@@ -533,10 +534,10 @@ contract Vaultis is Ownable, ReentrancyGuard {
             catch {
                 revert("Invalid ERC-20 token: totalSupply call failed");
             }
-            // prizeToken = IERC20(_prizeTokenAddress); // Removed, now part of RiddleConfig
+            // prizeToken = IERC20(_prizeTokenAddress);
         } else {
             require(_prizeTokenAddress == address(0), "Prize token address must be zero for ETH prize");
-            // prizeToken = IERC20(address(0)); // Removed, now part of RiddleConfig
+            // prizeToken = IERC20(address(0));
         }
 
         if (ENTRY_FEE > 0) {
@@ -688,7 +689,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         uint256 distributedInThisBatch = 0;
         for (uint256 i = 0; i < _winnersBatch.length; i++) {
             address winner = _winnersBatch[i];
-            if (!hasClaimed[_riddleId][winner]) {
+            if (isWinner[_riddleId][winner] && !hasClaimed[_riddleId][winner]) {
                 hasClaimed[_riddleId][winner] = true; // Mark as claimed before external call
                 paidWinnersCount[_riddleId]++; // Increment global paid winners count
 
