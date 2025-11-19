@@ -372,11 +372,47 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows a player to submit a hashed guess for a specific riddle.
-     * @dev This function is part of a commit-reveal scheme to prevent front-running.
-     *      Players submit a hash of their guess first, and later reveal the actual guess.
-     * @param _riddleId The ID of the riddle for which the guess is being submitted.
-     * @param _guessHash The keccak256 hash of the player\'s guess.
+     * @notice Allows a player to submit a hashed guess for a specific riddle as part of a commit-reveal scheme.
+     * @dev This function records a player's commitment to a guess. The actual guess is revealed later using `revealGuess`.
+     *      This prevents front-running and ensures fair play.
+     *
+     *      **Hash Requirements:**
+     *      The `_guessHash` must be the `keccak256` hash of the player's intended guess.
+     *      It is crucial to use `abi.encodePacked` for hashing the guess string to match the contract's internal hashing mechanism.
+     *      Example: `keccak256(abi.encodePacked("mysecretguess"))`
+     *
+     *      **Winner Evaluation:**
+     *      If the submitted `_guessHash` matches the riddle's `sAnswerHash`, the player is immediately marked as a potential winner.
+     *      However, the prize is only claimable after successfully revealing the guess via `revealGuess` and then calling `solveRiddleAndClaim`.
+     *
+     *      **Retry Usage:**
+     *      If a player has previously submitted a guess for the current riddle and their new `_guessHash` does not match the `sAnswerHash`,
+     *      a retry is consumed. Players can purchase retries using `purchaseRetry` up to `MAX_RETRIES`.
+     *      If a retry is used, the previous committed guess and its timestamp are cleared, allowing a new guess to be committed.
+     *
+     *      **Emitted Events:**
+     *      - `GuessSubmitted(player, riddleId, guessHash)`: Always emitted when a guess is successfully committed.
+     *      - `WinnerFound(winner, riddleId)`: Emitted if the `_guessHash` matches the `sAnswerHash` and the player was not already a winner.
+     *      - `GuessEvaluated(riddleId, player, timestamp, isWinner)`: Emitted after evaluating the guess, indicating if it was correct.
+     *
+     *      **Example Usage (Solidity):**
+     *      ```solidity
+     *      string memory playerGuess = "mysecretanswer";
+     *      bytes32 hashedGuess = keccak256(abi.encodePacked(playerGuess));
+     *      vaultisContract.submitGuess(currentRiddleId, hashedGuess);
+     *      ```
+     *
+     *      **Example Usage (Web3.js/Ethers.js):**
+     *      ```javascript
+     *      const playerGuess = "mysecretanswer";
+     *      const hashedGuess = web3.utils.keccak256(web3.eth.abi.encodePacked(playerGuess));
+     *      // Or for ethers.js:
+     *      // const hashedGuess = ethers.utils.keccak256(ethers.utils.defaultAbiCoder.encode(['string'], [playerGuess]));
+     *      await vaultisContract.methods.submitGuess(currentRiddleId, hashedGuess).send({ from: playerAddress });
+     *      ```
+     *
+     * @param _riddleId The ID of the riddle for which the guess is being submitted. Must be the `currentRiddleId`.
+     * @param _guessHash The `keccak256` hash of the player's guess. Must not be `bytes32(0)`.
      */
     function submitGuess(uint256 _riddleId, bytes32 _guessHash) public nonReentrant {
         require(_riddleId > 0, "Riddle ID cannot be zero");
