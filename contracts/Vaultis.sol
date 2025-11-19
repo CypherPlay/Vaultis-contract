@@ -356,8 +356,63 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows a player to purchase a retry for a specific riddle.
-     * @dev The player must pay the RETRY_COST in retryToken.
+     * @notice Allows a player to purchase an additional retry attempt for the current riddle.
+     * @dev This function facilitates the retry mechanism within the Vaultis game.
+     *      Players can purchase retries to submit new guesses after an incorrect attempt,
+     *      up to a maximum defined by `MAX_RETRIES`.
+     *
+     *      **Process:**
+     *      1.  **Validation:** Checks if the provided `_riddleId` matches the `currentRiddleId`,
+     *          if the player has already participated in the riddle, if the `retryToken` is set,
+     *          and if the player has not exceeded `MAX_RETRIES`.
+     *      2.  **Retry Reset:** If the player is interacting with a new riddle (i.e., `lastRiddleIdForUser[msg.sender]`
+     *          is different from `_riddleId`), their retry count is reset to 0. This ensures retries are
+     *          per-riddle and not carried over.
+     *      3.  **Token Transfer:** Requires the player to transfer `RETRY_COST` amount of the
+     *          `retryToken` (an ERC20 token, referred to as `$Y` token in documentation) to the contract.
+     *          This transfer uses `SafeERC20.safeTransferFrom` and explicitly checks for an exact transfer amount,
+     *          meaning fee-on-transfer (FOT) tokens are **NOT** supported for retry payments.
+     *      4.  **State Update:** Increments the player's `retries[msg.sender]` count for the current riddle.
+     *      5.  **Event Emission:** Emits a `RetryPurchased` event upon successful purchase.
+     *
+     *      **State Changes:**
+     *      -   `retries[msg.sender]` is incremented (or reset to 0 if a new riddle).
+     *      -   `lastRiddleIdForUser[msg.sender]` is updated to `_riddleId` if it's a new riddle for the user.
+     *      -   `retryToken` balance of the contract increases by `RETRY_COST`.
+     *      -   `retryToken` balance of `msg.sender` decreases by `RETRY_COST`.
+     *
+     *      **Error Messages:**
+     *      -   `"Not the active riddle ID"`: If `_riddleId` does not match `currentRiddleId`.
+     *      -   `"Must participate in the riddle first"`: If the player has not called `enterGame` for the riddle.
+     *      -   `"Retry token not set"`: If the `retryToken` address is `address(0)`.
+     *      -   `"Max retries reached"`: If `retries[msg.sender]` is already equal to `MAX_RETRIES`.
+     *      -   `"Retry cost mismatch (FOT not supported)"`: If the amount of `retryToken` transferred
+     *          is not exactly `RETRY_COST`, typically due to fee-on-transfer tokens.
+     *
+     *      **Usage Examples (Solidity):**
+     *      ```solidity
+     *      // Assuming 'vaultisContract' is an instance of Vaultis and 'retryTokenContract' is an IERC20 instance
+     *      // First, approve the Vaultis contract to spend the retry tokens
+     *      retryTokenContract.approve(address(vaultisContract), vaultisContract.RETRY_COST());
+     *
+     *      // Then, purchase a retry for the current riddle
+     *      vaultisContract.purchaseRetry(vaultisContract.currentRiddleId());
+     *      ```
+     *
+     *      **Usage Examples (Web3.js/Ethers.js):**
+     *      ```javascript
+     *      // Assuming 'vaultisContract' and 'retryTokenContract' are contract instances
+     *      // and 'playerAddress' is the address of the player
+     *
+     *      // Approve the Vaultis contract to spend retry tokens
+     *      const retryCost = await vaultisContract.RETRY_COST();
+     *      await retryTokenContract.methods.approve(vaultisContract.address, retryCost).send({ from: playerAddress });
+     *
+     *      // Purchase a retry
+     *      const currentRiddleId = await vaultisContract.currentRiddleId();
+     *      await vaultisContract.methods.purchaseRetry(currentRiddleId).send({ from: playerAddress });
+     *      ```
+     *
      * @param _riddleId The ID of the riddle for which the retry is being purchased.
      */
     function purchaseRetry(uint256 _riddleId) public nonReentrant {
