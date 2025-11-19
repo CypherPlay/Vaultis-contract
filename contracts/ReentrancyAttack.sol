@@ -45,8 +45,6 @@ contract ReentrancyAttack {
         // The actual recursion depth will be limited by Vaultis's gas stipend for external calls.
     }
 
-
-
     /// @notice Fallback function to receive Ether.
     /// @dev This function is called when Ether is sent to the contract.
     /// @dev It only accepts ETH and does not perform any external state-changing calls directly.
