@@ -2017,7 +2017,10 @@ contract VaultisTest is Test {
         vaultis.setRevealDelay(0); // No delay for testing
         (bool success,) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
         require(success);
-        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        vm.stopPrank();
+
+        mockERC20.mint(user2, vaultis.ENTRY_FEE()); // Mint tokens to user2
+        vm.startPrank(user2); // Start prank for user2
         mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
         vaultis.enterGame(1);
         vm.stopPrank();
