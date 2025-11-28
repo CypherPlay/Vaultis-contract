@@ -792,4 +792,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
         }
         return 0; // Should not be reached if prizeType is always set
     }
+
+    /**
+     * @notice Returns true if the player has entered the current riddle, false otherwise.
+     * @param player The address of the player to check.
+     * @return True if the player has entered, false otherwise.
+     */
+    function hasPlayerEntered(address player) public view returns (bool) {
+        return hasParticipated[currentRiddleId][player];
+    }
 }
