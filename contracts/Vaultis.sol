@@ -777,4 +777,19 @@ contract Vaultis is Ownable, ReentrancyGuard {
     function getPrizeToken() public view returns (address) {
         return address(riddleConfigs[currentRiddleId].prizeToken);
     }
+
+    /**
+     * @notice Returns the current prize pool amount for the active riddle.
+     * @dev This function is a view function and does not modify the contract state.
+     * @return The current prize pool amount (either ETH or ERC20 tokens).
+     */
+    function getCurrentPrizePool() public view returns (uint256) {
+        RiddleConfig storage currentRiddleConfig = riddleConfigs[currentRiddleId];
+        if (currentRiddleConfig.prizeType == PrizeType.ETH) {
+            return ethPrizePool;
+        } else if (currentRiddleConfig.prizeType == PrizeType.ERC20) {
+            return tokenPrizePool;
+        }
+        return 0; // Should not be reached if prizeType is always set
+    }
 }
