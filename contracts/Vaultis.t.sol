@@ -471,6 +471,34 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
+    function testGetCurrentPrizePoolEth() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 5 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        (bool success,) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.getCurrentPrizePool(), prizeAmount, "ETH prize pool should match funded amount");
+    }
+
+    function testGetCurrentPrizePoolErc20() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1000;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.getCurrentPrizePool(), prizeAmount, "ERC20 prize pool should match funded amount");
+    }
+
+
     function testSetRiddleZeroPrizeAmountFails() public {
         vm.expectRevert("Prize amount must be greater than zero");
         vm.startPrank(user1);
