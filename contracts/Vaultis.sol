@@ -774,6 +774,15 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @dev Returns address(0) if the prize type is ETH or if no prize token is set.
      * @return The address of the prize token.
      */
+    /**
+     * @notice Returns the full list of winners for a specific riddle.
+     * @param _riddleId The ID of the riddle to get the winner list for.
+     * @return An array of addresses of the winners for the specified riddle.
+     */
+    function getWinnerList(uint256 _riddleId) public view returns (address[] memory) {
+        return winners[_riddleId];
+    }
+
     function getPrizeToken() public view returns (address) {
         return address(riddleConfigs[currentRiddleId].prizeToken);
     }
