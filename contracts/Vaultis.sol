@@ -810,4 +810,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
     function hasPlayerEntered(address player) public view returns (bool) {
         return hasParticipated[currentRiddleId][player];
     }
+
+    /**
+     * @notice Returns the number of remaining retries for a given player for the current riddle.
+     * @param player The address of the player to check.
+     * @return The number of retries remaining for the player.
+     */
+    function getRetryCount(address player) public view returns (uint256) {
+        return retries[player];
+    }
 }
