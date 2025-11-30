@@ -111,7 +111,8 @@ describe("Vaultis - Guess Submission", function () {
         expect(await vaultis.retries(addr1.address)).to.equal(3); // Initial retries should be 3 if MAX_RETRIES is 3
 
         // Purchase a retry
-        await mockERC20.connect(addr1).approve(vaultis.address, vaultis.RETRY_COST());
+        const retryCost = await vaultis.RETRY_COST();
+        await mockERC20.connect(addr1).approve(vaultis.address, retryCost);
         await vaultis.connect(addr1).purchaseRetry(RIDDLE_ID);
         expect(await vaultis.retries(addr1.address)).to.equal(4); // Should have 4 retries after purchase
 
@@ -120,10 +121,10 @@ describe("Vaultis - Guess Submission", function () {
         expect(await vaultis.retries(addr1.address)).to.equal(3); // Should be 3 now
 
         // Subsequent incorrect guesses until max retries reached
-        await mockERC20.connect(addr1).approve(vaultis.address, vaultis.RETRY_COST());
+        await mockERC20.connect(addr1).approve(vaultis.address, retryCost);
         await vaultis.connect(addr1).purchaseRetry(RIDDLE_ID);
         await vaultis.connect(addr1).submitGuess(RIDDLE_ID, INCORRECT_HASHED_GUESS); // retries = 3
-        await mockERC20.connect(addr1).approve(vaultis.address, vaultis.RETRY_COST());
+        await mockERC20.connect(addr1).approve(vaultis.address, retryCost);
         await vaultis.connect(addr1).purchaseRetry(RIDDLE_ID);
         await vaultis.connect(addr1).submitGuess(RIDDLE_ID, INCORRECT_HASHED_GUESS); // retries = 3
 
@@ -183,7 +184,8 @@ describe("Vaultis - Guess Submission", function () {
         expect(await vaultis.hasRevealed(RIDDLE_ID, addr1.address)).to.be.true;
 
         // Purchase a retry
-        await mockERC20.connect(addr1).approve(vaultis.address, vaultis.RETRY_COST());
+        const retryCost = await vaultis.RETRY_COST();
+        await mockERC20.connect(addr1).approve(vaultis.address, retryCost);
         await vaultis.connect(addr1).purchaseRetry(RIDDLE_ID);
 
         // Submit a second (incorrect) guess, which should consume a retry and clear previous states
