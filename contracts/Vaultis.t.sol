@@ -883,6 +883,43 @@ contract VaultisTest is Test {
         vm.stopPrank();
     }
 
+    function testCannotEnterGameTwiceSameRiddleNoTokenTransfer() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1 ether;
+        uint256 riddleId = 1;
+        uint256 entryFee = vaultis.ENTRY_FEE();
+
+        // Set an active riddle
+        vm.startPrank(user1);
+        vaultis.setRiddle(riddleId, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters the game successfully for the first time
+        mockERC20.mint(user2, entryFee);
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), entryFee);
+        vaultis.enterGame(riddleId);
+        vm.stopPrank();
+
+        assertTrue(vaultis.hasParticipated(riddleId, user2), "User2 should have participated in riddle");
+
+        // Record balances before the second attempt
+        uint256 initialUser2Balance = mockERC20.balanceOf(user2);
+        uint256 initialVaultisBalance = mockERC20.balanceOf(address(vaultis));
+
+        // User2 attempts to re-enter the same game
+        vm.expectRevert("Already participated in this riddle");
+        vm.startPrank(user2);
+        mockERC20.mint(user2, entryFee); // Mint more tokens in case the contract tries to pull again
+        mockERC20.approve(address(vaultis), entryFee); // Re-approve
+        vaultis.enterGame(riddleId);
+        vm.stopPrank();
+
+        // Assert that no token transfers occurred during the second, failed attempt
+        assertEq(mockERC20.balanceOf(user2), initialUser2Balance + entryFee, "User2's balance should reflect new mint, not transfer");
+        assertEq(mockERC20.balanceOf(address(vaultis)), initialVaultisBalance, "Vaultis's balance should be unchanged");
+    }
+
     function testPurchaseRetrySuccess() public {
         bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
         uint256 prizeAmount = 1 ether;
