@@ -24,17 +24,22 @@ describe("Vaultis", function () {
 
   describe("enterGame", function () {
     it("Should allow a user to enter the game with a minimum deposit", async function () {
-      const depositAmount = ethers.parseEther("10"); // Example deposit amount
+      const depositAmount = ethers.parseEther("10");
+
+      // Mint tokens to addr1
+      await mockERC20.mint(addr1.address, depositAmount);
 
       // Approve the Vaultis contract to spend tokens on behalf of addr1
       await mockERC20.connect(addr1).approve(vaultis.target, depositAmount);
 
       // addr1 enters the game
-      await vaultis.connect(addr1).enterGame(depositAmount);
+      await expect(vaultis.connect(addr1).enterGame(depositAmount))
+        .to.emit(vaultis, "GameEntered")
+        .withArgs(addr1.address, depositAmount);
 
-      // Assertions (example - adjust based on actual contract logic)
+      // Assertions
       expect(await mockERC20.balanceOf(vaultis.target)).to.equal(depositAmount);
-      // Add more assertions based on your contract's state changes after entering the game
+      expect(await vaultis.isParticipating(addr1.address)).to.be.true;
     });
 
     it("Should revert if the deposit amount is less than the minimum", async function () {
