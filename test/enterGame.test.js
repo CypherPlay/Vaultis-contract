@@ -20,28 +20,32 @@ describe("Vaultis", function () {
     Vaultis = await ethers.getContractFactory("Vaultis");
     vaultis = await Vaultis.deploy(mockERC20.target);
     await vaultis.waitForDeployment();
+
+    // Set a riddle to allow entering the game
+    const riddleId = 1;
+    const answerHash = ethers.keccak256(ethers.toUtf8Bytes("test_answer")); // Example hash
+    const prizeAmount = ethers.parseEther("100");
+    await vaultis.setRiddle(riddleId, answerHash, 0, ethers.ZeroAddress, prizeAmount, mockERC20.target);
   });
 
   describe("enterGame", function () {
     it("Should allow a user to enter the game with a minimum deposit", async function () {
-      const depositAmount = ethers.parseEther("10"); // Example deposit amount
+      const riddleId = 1;
+      await expect(vaultis.connect(addr1).enterGame(riddleId))
+        .to.emit(vaultis, "PlayerEntered")
+        .withArgs(addr1.address, riddleId);
 
-      // Approve the Vaultis contract to spend tokens on behalf of addr1
-      await mockERC20.connect(addr1).approve(vaultis.target, depositAmount);
-
-      // addr1 enters the game
-      await vaultis.connect(addr1).enterGame(depositAmount);
-
-      // Assertions (example - adjust based on actual contract logic)
+      // Assertions
       expect(await mockERC20.balanceOf(vaultis.target)).to.equal(depositAmount);
-      // Add more assertions based on your contract's state changes after entering the game
+      expect(await vaultis.hasPlayerEntered(addr1.address)).to.be.true;
     });
 
     it("Should revert if the deposit amount is less than the minimum", async function () {
       const depositAmount = ethers.parseEther("0"); // Less than minimum
 
       // Expect the transaction to revert
-      await expect(vaultis.connect(addr1).enterGame(depositAmount)).to.be.revertedWith("Deposit amount must be greater than zero");
+      const riddleId = 1;
+      await expect(vaultis.connect(addr1).enterGame(riddleId)).to.be.revertedWith("Deposit amount must be greater than zero");
     });
   });
 });
