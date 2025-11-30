@@ -908,10 +908,10 @@ contract VaultisTest is Test {
         uint256 initialVaultisBalance = mockERC20.balanceOf(address(vaultis));
 
         // User2 attempts to re-enter the same game
-        vm.expectRevert("Already participated in this riddle");
         vm.startPrank(user2);
         mockERC20.mint(user2, entryFee); // Mint more tokens in case the contract tries to pull again
         mockERC20.approve(address(vaultis), entryFee); // Re-approve
+        vm.expectRevert("Already participated in this riddle");
         vaultis.enterGame(riddleId);
         vm.stopPrank();
 
