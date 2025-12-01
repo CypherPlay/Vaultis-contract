@@ -68,7 +68,7 @@ describe("Vaultis - Guess Submission", function () {
         // Player submits a guess
         await expect(vaultis.connect(addr1).submitGuess(RIDDLE_ID, SECRET_HASHED_ANSWER))
             .to.emit(vaultis, "GuessSubmitted")
-            .withArgs(addr1.address, RIDDLE_ID, SECRET_HASHED_ANSWER);
+            .withArgs(addr1.address, RIDDLE_ID, SECRET_HASHED_ANSWER, true); // Added 'true' for isWinner
 
         // Verify that the player is now a winner
         expect(await vaultis.isWinner(RIDDLE_ID, addr1.address)).to.be.true;
@@ -143,7 +143,9 @@ describe("Vaultis - Guess Submission", function () {
             .to.emit(vaultis, "WinnerFound")
             .withArgs(addr1.address, RIDDLE_ID)
             .and.to.emit(vaultis, "GuessEvaluated")
-            .withArgs(RIDDLE_ID, addr1.address, (await ethers.provider.getBlock("latest")).timestamp + 1, true);
+            .withArgs(RIDDLE_ID, addr1.address, (await ethers.provider.getBlock("latest")).timestamp + 1, true)
+            .and.to.emit(vaultis, "GuessSubmitted")
+            .withArgs(addr1.address, RIDDLE_ID, SECRET_HASHED_ANSWER, true);
 
         expect(await vaultis.isWinner(RIDDLE_ID, addr1.address)).to.be.true;
     });
