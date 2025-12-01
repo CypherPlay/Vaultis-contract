@@ -167,6 +167,21 @@ describe("Vaultis - Guess Submission", function () {
         expect(await vaultis.isWinner(RIDDLE_ID, addr1.address)).to.be.true;
     });
 
+    it("Should not add player to winners list if an incorrect guess is submitted", async function () {
+        // Player enters the game
+        await mockERC20.connect(addr1).approve(vaultis.address, ENTRY_FEE);
+        await vaultis.connect(addr1).enterGame(RIDDLE_ID);
+
+        // Submit an incorrect guess
+        await expect(vaultis.connect(addr1).submitGuess(RIDDLE_ID, INCORRECT_HASHED_GUESS))
+            .to.emit(vaultis, "GuessSubmitted")
+            .withArgs(addr1.address, RIDDLE_ID, INCORRECT_HASHED_GUESS, false) // isWinner should be false
+            .and.to.not.emit(vaultis, "WinnerFound"); // No WinnerFound event
+
+        // Verify that the player is NOT a winner
+        expect(await vaultis.isWinner(RIDDLE_ID, addr1.address)).to.be.false;
+    });
+
     it("Should reset committed guess and revealed state when a retry is consumed", async function () {
         // Player enters the game
         await mockERC20.connect(addr1).approve(vaultis.address, ENTRY_FEE);
