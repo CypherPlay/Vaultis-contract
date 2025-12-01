@@ -250,6 +250,130 @@ contract VaultisTest is Test {
         assertEq(vaultis.committedAt(1, user1), 0); // Should be cleared
     }
 
+    function testSubmitGuessUsesRetryWhenAvailable() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters the game
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User2 submits initial guess
+        bytes32 guessHash1 = keccak256(abi.encodePacked("guess_one"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash1);
+        vm.stopPrank();
+
+        // Ensure no retries are available initially for the second guess
+        assertEq(vaultis.retries(user2), 0, "User2 should have 0 retries after first guess");
+
+        // Purchase a retry
+        mockERC20.mint(user2, vaultis.RETRY_COST());
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST());
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "User2 should have 1 retry after purchase");
+
+        // Submit a second guess, using the retry
+        bytes32 guessHash2 = keccak256(abi.encodePacked("guess_two"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash2);
+        vm.stopPrank();
+
+        assertEq(vaultis.committedGuesses(1, user2), guessHash2, "Second guess should be committed");
+        assertEq(vaultis.retries(user2), 0, "Retry should be decremented after use");
+    }
+
+    function testSubmitGuessWithRetriesDecrementsCorrectly() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters the game
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User2 submits initial guess
+        bytes32 guessHash1 = keccak256(abi.encodePacked("guess_one"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 0, "Retries should be 0 after initial guess");
+
+        // Purchase two retries
+        mockERC20.mint(user2, vaultis.RETRY_COST() * 2);
+        vm.startPrank(user2);
+        mockERC20.approve(address(vaultis), vaultis.RETRY_COST() * 2);
+        vaultis.purchaseRetry(1);
+        vaultis.purchaseRetry(1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 2, "User2 should have 2 retries");
+
+        // Submit a second guess
+        bytes32 guessHash2 = keccak256(abi.encodePacked("guess_two"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash2);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 1, "Retries should decrement to 1 after second guess");
+
+        // Submit a third guess
+        bytes32 guessHash3 = keccak256(abi.encodePacked("guess_three"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash3);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 0, "Retries should decrement to 0 after third guess");
+    }
+
+    function testSubmitGuessFailsWhenZeroRetries() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("test_answer"));
+        uint256 prizeAmount = 1 ether;
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vm.stopPrank();
+
+        // User2 enters the game
+        vm.startPrank(user2);
+        mockERC20.mint(user2, vaultis.ENTRY_FEE());
+        mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+        vaultis.enterGame(1);
+        vm.stopPrank();
+
+        // User2 submits initial guess (uses up the default 1 guess slot, leaves 0 retries)
+        bytes32 guessHash1 = keccak256(abi.encodePacked("guess_one"));
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash1);
+        vm.stopPrank();
+
+        assertEq(vaultis.retries(user2), 0, "Retries should be 0 after initial guess");
+
+        // User2 attempts to submit another guess without purchasing a retry
+        bytes32 guessHash2 = keccak256(abi.encodePacked("guess_two"));
+        vm.expectRevert("Vaultis: No retries available to submit a new guess.");
+        vm.startPrank(user2);
+        vaultis.submitGuess(1, guessHash2);
+        vm.stopPrank();
+    }
+
     function testSolveRiddleAndClaimWithoutRevealFails() public {
         bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
         uint256 prizeAmount = 1 ether;
