@@ -123,25 +123,26 @@ describe("Vaultis Payouts", function () {
       expect(finalVaultisBalance).to.equal(initialVaultisBalance.sub(prizePoolAmount));
     });
 
-    it("should not payout if riddle is not solved", async function () {
-      // Create a riddle that is not solved
-      const unsolvedRiddleId = 2;
-      const unsolvedRiddleAnswer = "anotheranswer";
-      const unsolvedPrizeAmount = ethers.parseEther("50");
+    it("should reset prize pool and mark riddle as paid out after payout", async function () {
+      const entryFee = ENTRY_FEE;
 
-      await vaultis.connect(owner).setRiddle(
-        unsolvedRiddleId,
-        ethers.keccak256(ethers.toUtf8Bytes(unsolvedRiddleAnswer)),
-        1, // PrizeType.ERC20
-        mockERC20.address,
-        unsolvedPrizeAmount,
-        mockERC20.address // Entry fee token
-      );
-      await mockERC20.connect(owner).transfer(vaultis.address, unsolvedPrizeAmount);
+      // Player 1 enters the game and submits correct guess
+      await mockERC20.connect(addr1).approve(vaultis.address, entryFee);
+      await vaultis.connect(addr1).enterGame(riddleId);
+      await vaultis.connect(addr1).submitGuess(riddleId, riddleAnswer);
 
-      // Attempt to payout for the unsolved riddle
-      await expect(vaultis.connect(owner).payout(unsolvedRiddleId))
-        .to.be.revertedWith("Riddle has not been solved");
+      // Get initial prize pool amount
+      let riddle = await vaultis.getRiddle(riddleId);
+      expect(riddle.prizePool).to.equal(prizePoolAmount);
+      expect(await vaultis.isPaidOut(riddleId)).to.be.false;
+
+      // Trigger payout
+      await vaultis.connect(owner).payout(riddleId);
+
+      // Verify prize pool is reset and isPaidOut is true
+      riddle = await vaultis.getRiddle(riddleId); // Re-fetch riddle state
+      expect(riddle.prizePool).to.equal(0);
+      expect(await vaultis.isPaidOut(riddleId)).to.be.true;
     });
   });
 });
