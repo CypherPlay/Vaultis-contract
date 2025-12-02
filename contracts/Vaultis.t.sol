@@ -1544,11 +1544,128 @@ contract VaultisTest is Test {
         vm.stopPrank();
 
         assertEq(vaultis.tokenPrizePool(), 0);
-        assertEq(mockERC20.balanceOf(user2), prizeAmount / 2);
-        assertEq(mockERC20.balanceOf(user3), prizeAmount / 2);
+
+        uint256 perWinnerAmount = prizeAmount / 2;
+
+        assertEq(mockERC20.balanceOf(user2), perWinnerAmount);
+        assertEq(mockERC20.balanceOf(user3), perWinnerAmount);
         assertTrue(vaultis.hasClaimed(1, user2));
         assertTrue(vaultis.hasClaimed(1, user3));
     }
+
+    function testPrizeShareCalculationMultipleWinnersRemainderEth() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 10 ether + 3; // 10 ether and 3 wei, to test remainder
+        uint256 numWinners = 4;
+        address[] memory users = _createUsers(numWinners);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ETH, address(0), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        (bool success,) = address(vaultis).call{value: prizeAmount}(""); // Fund the ETH prize pool
+        require(success);
+        vm.stopPrank();
+
+        assertEq(vaultis.ethPrizePool(), prizeAmount);
+
+        // Record initial balances
+        uint256[] memory initialBalances = new uint256[](numWinners);
+        for (uint256 i = 0; i < numWinners; i++) {
+            initialBalances[i] = users[i].balance;
+        }
+
+        // Each user enters, submits, and reveals a correct guess
+        for (uint256 i = 0; i < numWinners; i++) {
+            mockERC20.mint(users[i], vaultis.ENTRY_FEE());
+            vm.startPrank(users[i]);
+            mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+            vaultis.enterGame(1);
+            bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+            vaultis.submitGuess(1, guessHash);
+            vaultis.revealGuess(1, "correct_answer");
+            vm.stopPrank();
+        }
+
+        // Payout all winners in one go
+        vm.startPrank(user1);
+        vaultis.payout(1, users);
+        vm.stopPrank();
+
+        uint256 perWinnerAmount = prizeAmount / numWinners; // 10000000000000000003 / 4 = 2500000000000000000 with 3 remainder
+        uint256 remainder = prizeAmount % numWinners; // 3
+
+        assertEq(vaultis.ethPrizePool(), 0);
+        assertTrue(vaultis.isPaidOut(1));
+
+        // Verify individual balances
+        for (uint256 i = 0; i < numWinners; i++) {
+            uint256 expectedAmount = perWinnerAmount;
+            if (i < remainder) {
+                expectedAmount += 1;
+            }
+            assertEq(users[i].balance, initialBalances[i] + expectedAmount, "ETH Prize share mismatch");
+            assertTrue(vaultis.hasClaimed(1, users[i]));
+        }
+    }
+
+    function testPrizeShareCalculationMultipleWinnersRemainderErc20() public {
+        bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
+        uint256 prizeAmount = 1000 + 3; // 1003 tokens, to test remainder
+        uint256 numWinners = 4;
+        address[] memory users = _createUsers(numWinners);
+
+        vm.startPrank(user1);
+        vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
+        vaultis.setRevealDelay(0); // No delay for testing
+        mockERC20.mint(user1, prizeAmount);
+        mockERC20.approve(address(vaultis), prizeAmount);
+        vaultis.fundTokenPrizePool(prizeAmount);
+        vm.stopPrank();
+
+        assertEq(vaultis.tokenPrizePool(), prizeAmount);
+
+        // Record initial balances
+        uint256[] memory initialBalances = new uint256[](numWinners);
+        for (uint256 i = 0; i < numWinners; i++) {
+            initialBalances[i] = mockERC20.balanceOf(users[i]);
+        }
+
+        // Each user enters, submits, and reveals a correct guess
+        for (uint256 i = 0; i < numWinners; i++) {
+            mockERC20.mint(users[i], vaultis.ENTRY_FEE());
+            vm.startPrank(users[i]);
+            mockERC20.approve(address(vaultis), vaultis.ENTRY_FEE());
+            vaultis.enterGame(1);
+            bytes32 guessHash = keccak256(abi.encodePacked("correct_answer"));
+            vaultis.submitGuess(1, guessHash);
+            vm.warp(block.timestamp + vaultis.revealDelay()); // Advance time for reveal
+            vaultis.revealGuess(1, "correct_answer");
+            vm.stopPrank();
+        }
+
+        // Payout all winners in one go
+        vm.startPrank(user1);
+        vaultis.payout(1, users);
+        vm.stopPrank();
+
+        uint256 perWinnerAmount = prizeAmount / numWinners; // 1003 / 4 = 250 with 3 remainder
+        uint256 remainder = prizeAmount % numWinners; // 3
+
+        assertEq(vaultis.tokenPrizePool(), 0);
+        assertTrue(vaultis.isPaidOut(1));
+
+        // Verify individual balances
+        for (uint256 i = 0; i < numWinners; i++) {
+            uint256 expectedAmount = perWinnerAmount;
+            if (i < remainder) {
+                expectedAmount += 1;
+            }
+            assertEq(mockERC20.balanceOf(users[i]), initialBalances[i] + expectedAmount, "ERC20 Prize share mismatch");
+            assertTrue(vaultis.hasClaimed(1, users[i]));
+        }
+    }
+
+
 
     function testPayoutAlreadyClaimedWinner() public {
         bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
