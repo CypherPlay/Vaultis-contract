@@ -31,6 +31,7 @@ contract ReentrancyAttackPayout {
         prizeToken = IERC20(_prizeTokenAddress);
         riddleId = _riddleId;
         owner = msg.sender;
+        maxRecursions = 1; // Initialize maxRecursions to a non-zero value for reentrancy testing
     }
 
     /// @notice Initiates a controlled reentrancy attack on the Vaultis contract's `payout` function.
