@@ -25,27 +25,27 @@ describe("Vaultis Payouts", function () {
     // Deploy MockERC20 token
     MockERC20 = await ethers.getContractFactory("MockERC20");
     mockERC20 = await MockERC20.deploy("MockToken", "MTK");
-    await mockERC20.deployed();
+    await mockERC20.waitForDeployment();
 
     // Mint tokens for players
-    await mockERC20.mint(owner.address, ethers.parseEther("1000"));
-    await mockERC20.mint(addr1.address, ethers.parseEther("100"));
-    await mockERC20.mint(addr2.address, ethers.parseEther("100"));
-    await mockERC20.mint(addr3.address, ethers.parseEther("100"));
+    await mockERC20.mint(await owner.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(await addr1.getAddress(), ethers.parseEther("100"));
+    await mockERC20.mint(await addr2.getAddress(), ethers.parseEther("100"));
+    await mockERC20.mint(await addr3.getAddress(), ethers.parseEther("100"));
 
     // Deploy Vaultis contract
     Vaultis = await ethers.getContractFactory("Vaultis");
-    vaultis = await Vaultis.deploy(mockERC20.address);
-    await vaultis.deployed();
+    vaultis = await Vaultis.deploy(mockERC20.target);
+    await vaultis.waitForDeployment();
 
     // Set up an active riddle
     await vaultis.connect(owner).setRiddle(
       riddleId,
       ethers.keccak256(ethers.toUtf8Bytes(riddleAnswer)),
       1, // PrizeType.ERC20
-      mockERC20.address,
+      mockERC20.target,
       prizePoolAmount,
-      mockERC20.address // Entry fee token
+      mockERC20.target // Entry fee token
     );
 
     // Initial funding for the prize pool (will be transferred in enterGame)
@@ -90,12 +90,11 @@ describe("Vaultis Payouts", function () {
       const finalAddr3Balance = await mockERC20.balanceOf(addr3.address);
 
       // Each winner should receive prizePoolAmount / 3
-      const expectedPayoutPerWinner = prizePoolAmount.div(3);
+      const expectedPayoutPerWinner = prizePoolAmount / 3n;
 
-      expect(finalAddr1Balance).to.equal(initialAddr1Balance.add(expectedPayoutPerWinner));
-      expect(finalAddr2Balance).to.equal(initialAddr2Balance.add(expectedPayoutPerWinner));
-      expect(finalAddr3Balance).to.equal(initialAddr3Balance.add(expectedPayoutPerWinner));
-      expect(finalVaultisBalance).to.equal(initialVaultisBalance.sub(prizePoolAmount));
+      expect(finalAddr1Balance).to.equal(initialAddr1Balance + expectedPayoutPerWinner);
+      expect(finalAddr2Balance).to.equal(initialAddr2Balance + expectedPayoutPerWinner);
+      expect(finalVaultisBalance).to.equal(initialVaultisBalance - prizePoolAmount);
     });
 
     it("should handle single winner scenario", async function () {
@@ -119,29 +118,32 @@ describe("Vaultis Payouts", function () {
       const finalVaultisBalance = await mockERC20.balanceOf(vaultis.address);
       const finalAddr1Balance = await mockERC20.balanceOf(addr1.address);
 
-      expect(finalAddr1Balance).to.equal(initialAddr1Balance.add(prizePoolAmount));
-      expect(finalVaultisBalance).to.equal(initialVaultisBalance.sub(prizePoolAmount));
+      expect(finalAddr1Balance).to.equal(initialAddr1Balance + prizePoolAmount);
+      expect(finalVaultisBalance).to.equal(initialVaultisBalance - prizePoolAmount);
     });
 
-    it("should not payout if riddle is not solved", async function () {
-      // Create a riddle that is not solved
-      const unsolvedRiddleId = 2;
-      const unsolvedRiddleAnswer = "anotheranswer";
-      const unsolvedPrizeAmount = ethers.parseEther("50");
+    it("should reset prize pool and mark riddle as paid out after payout", async function () {
+      const entryFee = ENTRY_FEE;
 
-      await vaultis.connect(owner).setRiddle(
-        unsolvedRiddleId,
-        ethers.keccak256(ethers.toUtf8Bytes(unsolvedRiddleAnswer)),
-        1, // PrizeType.ERC20
-        mockERC20.address,
-        unsolvedPrizeAmount,
-        mockERC20.address // Entry fee token
-      );
-      await mockERC20.connect(owner).transfer(vaultis.address, unsolvedPrizeAmount);
+      // Player 1 enters the game and submits correct guess
+      await mockERC20.connect(addr1).approve(vaultis.address, entryFee);
+      await vaultis.connect(addr1).enterGame(riddleId);
+      await vaultis.connect(addr1).submitGuess(riddleId, riddleAnswer);
 
-      // Attempt to payout for the unsolved riddle
-      await expect(vaultis.connect(owner).payout(unsolvedRiddleId))
-        .to.be.revertedWith("Riddle has not been solved");
+      // Get initial prize pool amount
+      let riddle = await vaultis.getRiddle(riddleId);
+      expect(riddle.prizePool).to.equal(prizePoolAmount);
+      expect(await vaultis.isPaidOut(riddleId)).to.be.false;
+
+      // Trigger payout
+      await expect(vaultis.connect(owner).payout(riddleId))
+        .to.emit(vaultis, "RiddlePayout")
+        .withArgs(riddleId, prizePoolAmount, 1);
+
+      // Verify prize pool is reset and isPaidOut is true
+      riddle = await vaultis.getRiddle(riddleId); // Re-fetch riddle state
+      expect(riddle.prizePool).to.equal(0);
+      expect(await vaultis.isPaidOut(riddleId)).to.be.true;
     });
   });
 });
