@@ -26,7 +26,7 @@ contract ReentrancyAttackPayout {
     /// @param _vaultisAddress The address of the Vaultis contract to attack.
     /// @param _prizeTokenAddress The address of the ERC20 token used as a prize.
     /// @param _riddleId The ID of the riddle this contract will try to claim for.
-    constructor(address _vaultisAddress, address _prizeTokenAddress, uint256 _riddleId) {
+    constructor(address payable _vaultisAddress, address _prizeTokenAddress, uint256 _riddleId) {
         vaultis = Vaultis(_vaultisAddress);
         prizeToken = IERC20(_prizeTokenAddress);
         riddleId = _riddleId;
@@ -38,20 +38,24 @@ contract ReentrancyAttackPayout {
     /// @dev It attempts to recursively call `payout` within its `receive` function.
     /// @param _payoutAmount The amount of prize to expect in each successful payout.
     /// @param _maxRecursions The maximum number of recursive calls to attempt.
-    function startPayoutAttack(uint256 _payoutAmount, uint256 _maxRecursions) public {
+    function startPayoutAttack(uint256 _payoutAmount, uint256 _maxRecursions) public returns (bool) {
         require(msg.sender == owner, "Only owner can start attack");
         payoutAmount = _payoutAmount;
         maxRecursions = _maxRecursions;
         currentRecursion = 0;
 
-        // Perform the initial payout, which will trigger the receive/fallback function
-        // if this contract is a winner and receives ETH.
-        // For ERC20, the transfer doesn't trigger receive(), so we'll need a different approach
-        // or assume ETH prize for reentrancy via receive().
-        // For this test, we'll focus on ETH reentrancy, as the nonReentrant modifier is on the payout function itself.
         address[] memory winners = new address[](1);
         winners[0] = address(this);
-        vaultis.payout(riddleId, winners);
+
+        bool success = false;
+        try vaultis.payout(riddleId, winners) {
+            success = true;
+        } catch Error(string memory reason) {
+            // Expected reentrancy revert or other reverts from payout
+        } catch {
+            // Catch all other revert types
+        }
+        return success;
     }
 
     /// @notice Fallback function to receive Ether.
