@@ -1545,7 +1545,10 @@ contract VaultisTest is Test {
 
         assertEq(vaultis.tokenPrizePool(), 0);
 
+        uint256 perWinnerAmount = prizeAmount / 2;
+
         assertEq(mockERC20.balanceOf(user2), perWinnerAmount);
+        assertEq(mockERC20.balanceOf(user3), perWinnerAmount);
         assertTrue(vaultis.hasClaimed(1, user2));
         assertTrue(vaultis.hasClaimed(1, user3));
     }
