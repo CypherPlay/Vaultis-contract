@@ -1463,6 +1463,7 @@ contract VaultisTest is Test {
     function testPayoutErc20PrizeSingleWinner() public {
         bytes32 answerHash = keccak256(abi.encodePacked("correct_answer"));
         uint256 prizeAmount = 100;
+        uint256 riddleId = 1;
 
         vm.startPrank(user1);
         vaultis.setRiddle(1, answerHash, Vaultis.PrizeType.ERC20, address(mockERC20), prizeAmount, address(mockERC20));
@@ -1494,7 +1495,22 @@ contract VaultisTest is Test {
 
         assertEq(vaultis.tokenPrizePool(), 0);
         assertEq(mockERC20.balanceOf(user2), prizeAmount);
-        assertTrue(vaultis.hasClaimed(1, user2));
+        assertTrue(vaultis.hasClaimed(riddleId, user2));
+        assertTrue(vaultis.isPaidOut(riddleId)); // Verify isPaidOut mapping
+
+        // Record balances before the second attempt to ensure no extra tokens are transferred
+        uint256 finalUser2Balance = mockERC20.balanceOf(user2);
+        uint256 finalVaultisTokenPool = vaultis.tokenPrizePool();
+
+        // Test: Payout for the same riddle again should revert
+        vm.expectRevert("Payout already executed for this riddle");
+        vm.startPrank(user1);
+        vaultis.payout(riddleId, winners);
+        vm.stopPrank();
+
+        // Verify no extra tokens were transferred
+        assertEq(mockERC20.balanceOf(user2), finalUser2Balance, "User2's balance should not change after failed payout");
+        assertEq(vaultis.tokenPrizePool(), finalVaultisTokenPool, "Vaultis token pool should not change after failed payout");
     }
 
     function testPayoutErc20PrizeMultipleWinners() public {
