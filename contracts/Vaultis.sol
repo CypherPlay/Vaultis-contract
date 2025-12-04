@@ -29,6 +29,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     uint256 public ethPrizePool;
     // IERC20 public prizeToken; // Removed, now part of RiddleConfig
     uint256 public tokenPrizePool;
+    uint256 public entryFeeBalance;
     // uint256 public prizeAmount; // Removed, now part of RiddleConfig
     IERC20 public entryFeeToken;
 
@@ -152,6 +153,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param riddleId The ID of the riddle the player entered.
      */
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
+    event EntryFeesWithdrawn(address indexed recipient, uint256 amount);
     /**
      * @notice Emitted when a player successfully purchases a retry for a riddle.
      * @dev While `_riddleId` indicates the active riddle at the time of purchase, retries are tracked globally per user and are reset when a user interacts with a new riddle.
@@ -263,6 +265,23 @@ contract Vaultis is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Allows the contract owner to withdraw accumulated entry fee tokens.
+     * @dev Only the contract owner can call this function.
+     * @param to The address to which the entry fee tokens will be transferred.
+     */
+    function withdrawEntryFees(address to) public onlyOwner nonReentrant {
+        require(entryFeeBalance > 0, "No entry fees to withdraw");
+        require(to != address(0), "Recipient address cannot be zero");
+        
+        uint256 amount = entryFeeBalance;
+        entryFeeBalance = 0; // Set to zero before transfer to follow Checks-Effects-Interactions pattern
+
+        require(address(entryFeeToken) != address(0), "Entry fee token not set");
+        entryFeeToken.safeTransfer(to, amount);
+        emit EntryFeesWithdrawn(to, amount);
+    }
+
+    /**
      * @notice Distributes the prize to the winner based on the prize type.
      * @dev Internal function that handles both ETH and ERC20 prize distribution.
      *      Follows the Checks-Effects-Interactions pattern for security.
@@ -350,6 +369,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             require(received == ENTRY_FEE, "Entry fee mismatch (FOT not supported)");
 
             emit EntryFeeCollected(msg.sender, address(token), received, _riddleId);
+            entryFeeBalance += received;
         }
 
         hasParticipated[_riddleId][msg.sender] = true; // mark entered
@@ -618,6 +638,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         require(ethPrizePool == 0, "Must withdraw ETH prize pool before new riddle");
         require(tokenPrizePool == 0, "Must withdraw token prize pool before new riddle");
+        require(entryFeeBalance == 0, "Withdraw entry fees before creating new riddle");
         currentRiddleId = _riddleId;
         sAnswerHash = _answerHash;
 
