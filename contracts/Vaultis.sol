@@ -153,6 +153,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param riddleId The ID of the riddle the player entered.
      */
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
+    event EntryFeesWithdrawn(address indexed recipient, uint256 amount);
     /**
      * @notice Emitted when a player successfully purchases a retry for a riddle.
      * @dev While `_riddleId` indicates the active riddle at the time of purchase, retries are tracked globally per user and are reset when a user interacts with a new riddle.
@@ -276,6 +277,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         entryFeeBalance = 0; // Set to zero before transfer to follow Checks-Effects-Interactions pattern
 
         IERC20(entryFeeToken).safeTransfer(to, amount);
+        emit EntryFeesWithdrawn(to, amount);
     }
 
     /**
