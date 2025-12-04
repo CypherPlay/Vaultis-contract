@@ -276,7 +276,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
         uint256 amount = entryFeeBalance;
         entryFeeBalance = 0; // Set to zero before transfer to follow Checks-Effects-Interactions pattern
 
-        IERC20(entryFeeToken).safeTransfer(to, amount);
+        require(address(entryFeeToken) != address(0), "Entry fee token not set");
+        entryFeeToken.safeTransfer(to, amount);
         emit EntryFeesWithdrawn(to, amount);
     }
 
