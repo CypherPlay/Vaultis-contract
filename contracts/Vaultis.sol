@@ -637,6 +637,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         require(ethPrizePool == 0, "Must withdraw ETH prize pool before new riddle");
         require(tokenPrizePool == 0, "Must withdraw token prize pool before new riddle");
+        require(entryFeeBalance == 0, "Withdraw entry fees before creating new riddle");
         currentRiddleId = _riddleId;
         sAnswerHash = _answerHash;
 
