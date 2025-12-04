@@ -30,6 +30,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
     // IERC20 public prizeToken; // Removed, now part of RiddleConfig
     uint256 public tokenPrizePool;
     uint256 public entryFeeBalance;
+    uint256 public retryFeeBalance; // New: To track collected retry fees
     // uint256 public prizeAmount; // Removed, now part of RiddleConfig
     IERC20 public entryFeeToken;
 
@@ -154,6 +155,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
      */
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
     event EntryFeesWithdrawn(address indexed recipient, uint256 amount);
+    event RetryFeesWithdrawn(address indexed recipient, uint256 amount);
     /**
      * @notice Emitted when a player successfully purchases a retry for a riddle.
      * @dev While `_riddleId` indicates the active riddle at the time of purchase, retries are tracked globally per user and are reset when a user interacts with a new riddle.
@@ -279,6 +281,23 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(address(entryFeeToken) != address(0), "Entry fee token not set");
         entryFeeToken.safeTransfer(to, amount);
         emit EntryFeesWithdrawn(to, amount);
+    }
+
+    /**
+     * @notice Allows the contract owner to withdraw accumulated retry fee tokens.
+     * @dev Only the contract owner can call this function.
+     * @param to The address to which the retry fee tokens will be transferred.
+     */
+    function withdrawRetryFees(address to) public onlyOwner nonReentrant {
+        require(retryFeeBalance > 0, "No retry fees to withdraw");
+        require(to != address(0), "Recipient address cannot be zero");
+
+        uint256 amount = retryFeeBalance;
+        retryFeeBalance = 0; // Set to zero before transfer to follow Checks-Effects-Interactions pattern
+
+        require(address(retryToken) != address(0), "Retry token not set");
+        retryToken.safeTransfer(to, amount);
+        emit RetryFeesWithdrawn(to, amount);
     }
 
     /**
@@ -452,6 +471,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
         retryToken.safeTransferFrom(msg.sender, address(this), RETRY_COST);
         uint256 received = retryToken.balanceOf(address(this)) - beforeBal;
         require(received == RETRY_COST, "Retry cost mismatch (FOT not supported)");
+        retryFeeBalance += received; // Add received retry cost to the retryFeeBalance
 
         retries[msg.sender]++;
         emit RetryPurchased(msg.sender, _riddleId, RETRY_COST, retries[msg.sender]);
