@@ -388,6 +388,7 @@ contract Vaultis is Ownable, ReentrancyGuard {
             require(received == ENTRY_FEE, "Entry fee mismatch (FOT not supported)");
 
             emit EntryFeeCollected(msg.sender, address(token), received, _riddleId);
+            // Update the dedicated entryFeeBalance. This balance is separate from the prize pools.
             entryFeeBalance += received;
         }
 
