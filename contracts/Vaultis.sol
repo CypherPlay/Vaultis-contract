@@ -472,7 +472,8 @@ contract Vaultis is Ownable, ReentrancyGuard {
         retryToken.safeTransferFrom(msg.sender, address(this), RETRY_COST);
         uint256 received = retryToken.balanceOf(address(this)) - beforeBal;
         require(received == RETRY_COST, "Retry cost mismatch (FOT not supported)");
-        retryFeeBalance += received; // Add received retry cost to the retryFeeBalance
+        // Increment the retryFeeBalance with the collected fee. This balance is separate and isolated from the active prize pool.
+        retryFeeBalance += received;
 
         retries[msg.sender]++;
         emit RetryPurchased(msg.sender, _riddleId, RETRY_COST, retries[msg.sender]);
