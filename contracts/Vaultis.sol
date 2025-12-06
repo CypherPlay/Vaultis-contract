@@ -281,7 +281,6 @@ contract Vaultis is Ownable, ReentrancyGuard {
         require(address(entryFeeToken) != address(0), "Entry fee token not set");
         entryFeeToken.safeTransfer(to, amount);
         emit EntryFeesWithdrawn(to, amount);
-        emit EntryFeesWithdrawn(to, amount);
     }
 
     /**
@@ -298,7 +297,6 @@ contract Vaultis is Ownable, ReentrancyGuard {
 
         require(address(retryToken) != address(0), "Retry token not set");
         retryToken.safeTransfer(to, amount);
-        emit RetryFeesWithdrawn(to, amount);
         emit RetryFeesWithdrawn(to, amount);
     }
 
