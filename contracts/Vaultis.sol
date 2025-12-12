@@ -70,6 +70,11 @@ contract Vaultis is Ownable, ReentrancyGuard {
     mapping(uint256 => uint256) public totalWinnersCount; // New: Total number of winners for a riddle
     mapping(uint256 => uint256) public paidWinnersCount; // New: Number of winners paid for a riddle
 
+    /**
+     * @notice Emitted when a correct guess is submitted and a new winner is found for a riddle.
+     * @param winner The address of the player who submitted the winning guess.
+     * @param riddleId The ID of the riddle for which the winner was found.
+     */
     event WinnerFound(address indexed winner, uint256 indexed riddleId);
 
     /**
@@ -80,6 +85,13 @@ contract Vaultis is Ownable, ReentrancyGuard {
      */
     event GuessSubmitted(address indexed player, uint256 indexed riddleId, bytes32 guessHash);
 
+    /**
+     * @notice Emitted after a player's guess is evaluated.
+     * @param riddleId The ID of the riddle for which the guess was evaluated.
+     * @param player The address of the player whose guess was evaluated.
+     * @param timestamp The timestamp when the guess was evaluated.
+     * @param isWinner True if the guess was correct and the player is a winner, false otherwise.
+     */
     event GuessEvaluated(uint256 indexed riddleId, address indexed player, uint256 timestamp, bool isWinner);
 
     /**
@@ -154,7 +166,17 @@ contract Vaultis is Ownable, ReentrancyGuard {
      * @param riddleId The ID of the riddle the player entered.
      */
     event PlayerEntered(address indexed player, uint256 indexed riddleId);
+    /**
+     * @notice Emitted when the contract owner withdraws accumulated entry fee tokens.
+     * @param recipient The address to which the entry fee tokens were transferred.
+     * @param amount The amount of entry fee tokens withdrawn.
+     */
     event EntryFeesWithdrawn(address indexed recipient, uint256 amount);
+    /**
+     * @notice Emitted when the contract owner withdraws accumulated retry fee tokens.
+     * @param recipient The address to which the retry fee tokens were transferred.
+     * @param amount The amount of retry fee tokens withdrawn.
+     */
     event RetryFeesWithdrawn(address indexed recipient, uint256 amount);
     /**
      * @notice Emitted when a player successfully purchases a retry for a riddle.
