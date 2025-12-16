@@ -21,3 +21,6 @@
 
 # Foundry build info
 /out/build-info
+
+# Documentation
+/docs
