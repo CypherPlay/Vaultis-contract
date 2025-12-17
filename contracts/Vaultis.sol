@@ -24,14 +24,42 @@ contract Vaultis is Ownable, ReentrancyGuard {
         revealDelay = 1 hours; // Default reveal delay
         retryToken = IERC20(_retryTokenAddress);
     }
+    /**
+     * @dev Stores the ETH balance of each user within the contract.
+     *      Users can deposit and withdraw ETH from their respective balances.
+     */
     mapping(address => uint256) public balances;
+    /**
+     * @dev The unique identifier for the currently active riddle.
+     *      This ID is incremented with each new riddle setup.
+     */
     uint256 public currentRiddleId;
+    /**
+     * @dev Stores the total amount of ETH currently held as prize money for the active riddle.
+     *      Funds are added via the `receive` function or `fundPrizePool` and distributed to winners.
+     */
     uint256 public ethPrizePool;
     // IERC20 public prizeToken; // Removed, now part of RiddleConfig
+    /**
+     * @dev Stores the total amount of ERC20 tokens currently held as prize money for the active riddle.
+     *      Funds are added via `fundTokenPrizePool` and distributed to winners if the prize type is ERC20.
+     */
     uint256 public tokenPrizePool;
+    /**
+     * @dev Stores the accumulated entry fees collected in ERC20 tokens.
+     *      This balance is separate from the prize pools and can be withdrawn by the contract owner.
+     */
     uint256 public entryFeeBalance;
+    /**
+     * @dev Stores the accumulated retry fees collected in ERC20 tokens.
+     *      This balance is separate from the prize pools and can be withdrawn by the contract owner.
+     */
     uint256 public retryFeeBalance; // New: To track collected retry fees
     // uint256 public prizeAmount; // Removed, now part of RiddleConfig
+    /**
+     * @dev The ERC20 token used for paying entry fees to participate in riddles.
+     *      Set by the contract owner when a new riddle is configured.
+     */
     IERC20 public entryFeeToken;
 
     struct RiddleConfig {
