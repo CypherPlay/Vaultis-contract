@@ -6,6 +6,18 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with the account:", deployer.address);
 
+  const network = hre.network.name;
+  console.log("Running on network:", network);
+
+  if (network === "localhost") {
+    console.log("This is a local Hardhat network deployment.");
+  } else if (network === "mainnet") {
+    console.log("WARNING: This is a mainnet deployment! Ensure you know what you are doing.");
+  } else {
+    console.log(`This is a ${network} testnet deployment.`);
+  }
+
+
   const deploymentsDir = path.join(__dirname, '../deployments');
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir);
